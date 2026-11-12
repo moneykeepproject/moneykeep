@@ -29,4 +29,7 @@ jobs:
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-deny
+      # Every platform's crates, so tests that run `cargo metadata --offline`
+      # (capture_version) can resolve the whole graph.
+      - run: cargo fetch --locked
       - run: cargo xtask ci

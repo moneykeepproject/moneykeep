@@ -341,7 +341,7 @@ fn backups_restoring_a_protected_backup_asks_for_its_password() {
     type_into(&mut h, "Backup password", "correct horse battery");
     click(&mut h, "Continue");
     assert_eq!(h.state().screen(), Screen::Main);
-    assert!(std::fs::read(&target).unwrap().starts_with(b"MCBOOKE1"));
+    assert!(encrypted_on_disk(&target));
     assert!(has_contains(
         &h,
         "This is a copy restored from the backup of "

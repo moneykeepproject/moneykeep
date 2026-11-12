@@ -585,3 +585,13 @@ pub fn fixture(path: &str) -> Vec<u8> {
     );
     std::fs::read(&p).unwrap_or_else(|e| panic!("{p}: {e}"))
 }
+
+/// The book file at `path` is password protected on disk. On Windows an open
+/// encrypted book's lock covers its bytes, so its file can't be read while the app
+/// has it open; that lock (`book_in_use`) is only ever an encrypted book's.
+pub fn encrypted_on_disk(path: &std::path::Path) -> bool {
+    match mk_commands::book_kind(path) {
+        Ok(kind) => kind == mk_commands::BookKind::Encrypted,
+        Err(e) => cfg!(windows) && e.code() == "book_in_use",
+    }
+}

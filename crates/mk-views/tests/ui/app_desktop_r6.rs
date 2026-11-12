@@ -68,7 +68,7 @@ fn app_desktop_at47_create_protected_book_and_recovery_modal() {
         .create_book(path.to_str().unwrap(), "Home", "USD");
     h.run();
     assert_eq!(h.state().screen(), Screen::Main);
-    assert!(std::fs::read(&path).unwrap().starts_with(b"MCBOOKE1"));
+    assert!(encrypted_on_disk(&path));
     assert!(has(&h, "Your recovery key"));
     assert!(has_contains(
         &h,
@@ -144,7 +144,7 @@ fn app_desktop_at49_protect_from_settings() {
     assert!(has(&h, "Your recovery key"));
     click(&mut h, "I've stored this key somewhere safe");
     click(&mut h, "Done");
-    assert!(std::fs::read(&book.path).unwrap().starts_with(b"MCBOOKE1"));
+    assert!(encrypted_on_disk(&book.path));
     assert!(has(&h, "This book is password protected."));
     for action in [
         "Change password…",

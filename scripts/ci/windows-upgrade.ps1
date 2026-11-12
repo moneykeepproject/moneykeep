@@ -178,11 +178,21 @@ function Save-Logs {
             Out-File (Join-Path $Out 'services-status.json')
     }
     # The silent setup drops move-data's report. When the service still isn't on the
-    # protected folder, run it once more by hand so the report says why.
+    # protected folder, run it once more by hand from the same start (no machine folder:
+    # a folder the first run left behind would only be refused as not MoneyKeep's), so
+    # the report says why, and show the folder's owner and permissions afterwards.
     if ($s -and $dir -and $s.PathName -notlike "*$MachineData*" -and
             (Test-Path (Join-Path $dir 'moneykeep-server.exe'))) {
+        if (Test-Path $MachineDir) { Remove-Item -Path $MachineDir -Recurse -Force }
         & (Join-Path $dir 'moneykeep-server.exe') services move-data 2>&1 |
             Out-File (Join-Path $Out 'move-data-again.json')
+        foreach ($d in @($MachineDir, $MachineData)) {
+            if (Test-Path $d) {
+                "== $d" | Out-File -Append (Join-Path $Out 'acl.txt')
+                Get-Acl -LiteralPath $d | Format-List Owner, AccessToString, AreAccessRulesProtected |
+                    Out-File -Append (Join-Path $Out 'acl.txt')
+            }
+        }
     }
     # Also in the job's own log, so a failure reads without downloading the artifact.
     foreach ($f in @(Get-ChildItem -Path $Out -File | Where-Object { $_.Name -ne 'steps.log' })) {

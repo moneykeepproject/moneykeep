@@ -1395,6 +1395,7 @@ mod tests {
     }
 
     /// The package's version (the release tag is `v` and this).
+    #[cfg(unix)]
     fn workspace_version() -> String {
         env!("CARGO_PKG_VERSION").to_owned()
     }

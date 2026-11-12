@@ -141,6 +141,8 @@ fn sealer(dir: &Path, creds: &Arc<MemoryCredentials>) -> KeychainSealer {
 /// key, which never makes a new one.
 #[test]
 fn mac7_keychain_sealer() {
+    // The sealers here are fakes; `init` below must not seal with the real login keychain.
+    store::without_platform_sealer();
     let d = tempfile::tempdir().unwrap();
     let dir = d.path();
     let creds = MemoryCredentials::new();

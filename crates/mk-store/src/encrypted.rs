@@ -40,11 +40,24 @@ pub enum BookKind {
     Encrypted,
 }
 
-/// What kind of book `path` holds, from its first bytes.
+/// Windows' error for reading bytes another handle has locked.
+const ERROR_LOCK_VIOLATION: i32 = 33;
+
+/// What kind of book `path` holds, from its first bytes. `BookInUse` when another
+/// session has the book open (Windows).
 pub fn book_kind(path: &Path) -> StoreResult<BookKind> {
     let mut head = [0u8; 16];
     let mut f = File::open(path).map_err(|e| io_err("open", path, &e))?;
-    let n = f.read(&mut head).map_err(|e| io_err("open", path, &e))?;
+    let n = f.read(&mut head).map_err(|e| {
+        // On Windows another session's exclusive lock covers the bytes, so the read
+        // itself fails (ERROR_LOCK_VIOLATION); on Unix the lock is advisory and the
+        // second open finds it in `lock`.
+        if cfg!(windows) && e.raw_os_error() == Some(ERROR_LOCK_VIOLATION) {
+            StoreError::BookInUse
+        } else {
+            io_err("open", path, &e)
+        }
+    })?;
     let head = head.get(..n).unwrap_or(&[]);
     if head.starts_with(crypt::MAGIC) {
         Ok(BookKind::Encrypted)
@@ -331,6 +344,19 @@ impl Store {
     /// The book file's path (None for an in-memory book).
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
+    }
+
+    /// The open encrypted book's file as it is on disk, read through the handle that
+    /// holds the lock (tests: on Windows no other handle can read a locked file).
+    pub fn file_bytes_for_tests(&self) -> StoreResult<Vec<u8>> {
+        use std::io::{Seek, SeekFrom};
+        let e = self.enc.as_ref().ok_or(StoreError::NotEncrypted)?;
+        let mut file = &e.file;
+        let mut bytes = Vec::new();
+        file.seek(SeekFrom::Start(0))
+            .and_then(|_| file.read_to_end(&mut bytes))
+            .map_err(|err| io_err("read", &e.path, &err))?;
+        Ok(bytes)
     }
 
     /// Make the next save fail (tests of the rollback path).

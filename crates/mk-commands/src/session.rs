@@ -284,6 +284,12 @@ impl Session {
         self.store.path()
     }
 
+    /// The open encrypted book's file as it is on disk (tests; see
+    /// [`mk_store::Store::file_bytes_for_tests`]).
+    pub fn file_bytes_for_tests(&self) -> CommandResult<Vec<u8>> {
+        Ok(self.store.file_bytes_for_tests()?)
+    }
+
     /// Make the next save of an encrypted book fail (tests).
     pub fn fail_next_save_for_tests(&mut self) {
         self.store.fail_next_save_for_tests();

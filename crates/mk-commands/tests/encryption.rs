@@ -198,7 +198,7 @@ fn book_encryption_at5_change_password_keeps_data_key_and_recovery() {
     let (mut s, path, key) = new_book(dir.path(), true);
     let key = key.unwrap();
     s.set_kdf(KdfParams::TEST);
-    let before = std::fs::read(&path).unwrap();
+    let before = s.file_bytes_for_tests().unwrap();
     s.change_password(&pw(PW), "tr0ub4dor and three").unwrap();
     // Wrong current password is refused.
     assert_eq!(
@@ -230,16 +230,16 @@ fn book_encryption_at6_save_writes_new_nonce_and_prev() {
     let (mut s, path, _) = new_book(dir.path(), false);
     s.invoke("account.create", json!({"name": "Before", "type": "asset"}))
         .unwrap();
-    let nonce1 = mk_store_nonce(&path);
+    let nonce1 = mk_store_nonce(&s);
     s.invoke("account.create", json!({"name": "After", "type": "asset"}))
         .unwrap();
-    let nonce2 = mk_store_nonce(&path);
+    let nonce2 = mk_store_nonce(&s);
     assert_ne!(nonce1, nonce2, "fresh payload nonce on every save");
     // Non-mutating commands never write.
     let mtime = std::fs::metadata(&path).unwrap().modified().unwrap();
     s.invoke("account.list", json!({})).unwrap();
     assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), mtime);
-    assert_eq!(mk_store_nonce(&path), nonce2);
+    assert_eq!(mk_store_nonce(&s), nonce2);
     drop(s);
     let prev = dir.path().join("home.moneykeep.prev");
     assert!(prev.exists());
@@ -248,8 +248,10 @@ fn book_encryption_at6_save_writes_new_nonce_and_prev() {
     assert!(n.contains(&"Before".to_owned()) && !n.contains(&"After".to_owned()));
 }
 
-fn mk_store_nonce(path: &Path) -> Vec<u8> {
-    let bytes = std::fs::read(path).unwrap();
+/// The payload nonce of the open book's file (read through the session, which holds
+/// the file's lock: on Windows no other handle can read it).
+fn mk_store_nonce(s: &Session) -> Vec<u8> {
+    let bytes = s.file_bytes_for_tests().unwrap();
     // Two-slot-free layout: header 40 + 73 per slot, then the 24-byte nonce.
     let slots = bytes[39] as usize;
     let at = 40 + 73 * slots;
@@ -262,7 +264,7 @@ fn book_encryption_at7_failed_save_rolls_back() {
     let (mut s, path, _) = new_book(dir.path(), false);
     s.invoke("account.create", json!({"name": "Kept", "type": "asset"}))
         .unwrap();
-    let on_disk = std::fs::read(&path).unwrap();
+    let on_disk = s.file_bytes_for_tests().unwrap();
     s.fail_next_save_for_tests();
     let e = s
         .invoke("account.create", json!({"name": "Lost", "type": "asset"}))
@@ -273,7 +275,7 @@ fn book_encryption_at7_failed_save_rolls_back() {
         "rolled back in memory"
     );
     assert!(names(&mut s).contains(&"Kept".to_owned()));
-    assert_eq!(std::fs::read(&path).unwrap(), on_disk, "file unchanged");
+    assert_eq!(s.file_bytes_for_tests().unwrap(), on_disk, "file unchanged");
     // The session keeps working afterwards.
     s.invoke("account.create", json!({"name": "Later", "type": "asset"}))
         .unwrap();
@@ -346,7 +348,7 @@ fn book_encryption_at10_unencrypted_copy_matches() {
             .unwrap()
             .starts_with(b"SQLite format 3\0")
     );
-    assert!(std::fs::read(&path).unwrap().starts_with(b"MCBOOKE1"));
+    assert!(s.file_bytes_for_tests().unwrap().starts_with(b"MCBOOKE1"));
     let mut c = Session::open(&copy, "t").unwrap();
     assert_eq!(c.invoke("report.trial_balance", json!({})).unwrap(), tb);
 }

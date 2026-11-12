@@ -260,6 +260,7 @@ impl Store {
                 return Ok(store);
             }
             Ok(BookKind::Plain) => {}
+            Err(StoreError::BookInUse) => return Err(StoreError::BookInUse),
             // An empty or unreadable file falls through to SQLite's own error.
             Err(StoreError::NotABook) if std::fs::metadata(path).is_ok_and(|m| m.len() > 0) => {
                 return Err(StoreError::NotABook);

@@ -87,6 +87,16 @@ pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 thread_local! {
     /// [`cut_writes`]: tests cut this thread's writes of one file short.
     static CUT: std::cell::RefCell<Option<(String, usize)>> = const { std::cell::RefCell::new(None) };
+    /// [`without_platform_sealer`]: this thread keeps `inbox.key` as a plain file.
+    static NO_SEALER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Tests: on this thread, [`platform_sealer`] is `None` on every system, as on Linux,
+/// so a test that reads `inbox.key` works on Windows and macOS too and never touches
+/// the real login keychain or DPAPI. The sealers have their own tests with fakes.
+#[doc(hidden)]
+pub fn without_platform_sealer() {
+    NO_SEALER.with(|n| n.set(true));
 }
 
 /// Tests (upgrade-resilience-1 UR-2): every write of a file named `name` on this
@@ -194,7 +204,9 @@ pub trait KeySealer: Send + Sync {
 
 /// This system's sealer for the data folder `dir`, if it has one.
 pub fn platform_sealer(dir: &Path) -> Option<Box<dyn KeySealer>> {
-    if cfg!(windows) {
+    if NO_SEALER.with(std::cell::Cell::get) {
+        None
+    } else if cfg!(windows) {
         Some(Box::new(crate::services::windows::Dpapi))
     } else if cfg!(target_os = "macos") {
         Some(Box::new(crate::secrets::KeychainSealer::new(

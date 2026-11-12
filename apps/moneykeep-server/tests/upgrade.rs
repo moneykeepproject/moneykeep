@@ -100,6 +100,7 @@ fn wifi_folder(dir: &Path, https: u16, http: u16) {
 /// the old file (and no temporary file).
 #[test]
 fn ur2_cut_writes_leave_the_old_file() {
+    store::without_platform_sealer();
     let d = tempfile::tempdir().unwrap();
     let dir = d.path();
     wifi_folder(dir, 14443, 14080);
@@ -160,6 +161,7 @@ fn ur2_cut_writes_leave_the_old_file() {
 /// key at all, the key "can't be opened" and no new one is made.
 #[test]
 fn ur2_key_opening() {
+    store::without_platform_sealer();
     let d = tempfile::tempdir().unwrap();
     let dir = d.path();
     moneykeep_server::init(dir, KeyHome::File, NOW).unwrap();

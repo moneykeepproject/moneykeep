@@ -218,11 +218,21 @@ fn paths_follow_normal_and_build_dependencies() {
     );
 }
 
+/// The workspace folder, from this crate's (absolute) folder. Not canonicalized: on
+/// Windows that adds `\\?\`, and cargo metadata then gives the workspace root and the
+/// crates' manifest paths in different forms.
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
+        .parent()
+        .and_then(Path::parent)
         .unwrap()
+        .to_path_buf()
+}
+
+/// `path` without a Windows verbatim prefix (`\\?\`).
+fn plain(path: &Path) -> PathBuf {
+    let s = path.to_string_lossy();
+    PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s))
 }
 
 /// The baked-in path list covers every workspace crate the capture server and the
@@ -243,7 +253,7 @@ fn capture_paths_cover_the_dependency_graph() {
         String::from_utf8_lossy(&out.stderr)
     );
     let meta: Value = serde_json::from_slice(&out.stdout).unwrap();
-    let root = PathBuf::from(meta["workspace_root"].as_str().unwrap());
+    let root = plain(Path::new(meta["workspace_root"].as_str().unwrap()));
     let members: BTreeSet<&str> = meta["workspace_members"]
         .as_array()
         .unwrap()
@@ -257,7 +267,7 @@ fn capture_paths_cover_the_dependency_graph() {
             .iter()
             .find(|p| p["id"] == id)
             .unwrap();
-        let dir = Path::new(p["manifest_path"].as_str().unwrap())
+        let dir = plain(Path::new(p["manifest_path"].as_str().unwrap()))
             .parent()
             .unwrap()
             .strip_prefix(&root)

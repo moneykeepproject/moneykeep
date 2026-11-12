@@ -177,6 +177,18 @@ function Save-Logs {
         & (Join-Path $dir 'moneykeep-server.exe') services status 2>&1 |
             Out-File (Join-Path $Out 'services-status.json')
     }
+    # The silent setup drops move-data's report. When the service still isn't on the
+    # protected folder, run it once more by hand so the report says why.
+    if ($s -and $dir -and $s.PathName -notlike "*$MachineData*" -and
+            (Test-Path (Join-Path $dir 'moneykeep-server.exe'))) {
+        & (Join-Path $dir 'moneykeep-server.exe') services move-data 2>&1 |
+            Out-File (Join-Path $Out 'move-data-again.json')
+    }
+    # Also in the job's own log, so a failure reads without downloading the artifact.
+    foreach ($f in @(Get-ChildItem -Path $Out -File | Where-Object { $_.Name -ne 'steps.log' })) {
+        Write-Host "----- $($f.Name)"
+        Get-Content -Path $f.FullName -Tail 80 | ForEach-Object { Write-Host $_ }
+    }
 }
 
 function Test-PreA1 {

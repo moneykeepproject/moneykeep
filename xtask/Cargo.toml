@@ -1,0 +1,26 @@
+[package]
+name = "xtask"
+description = "MoneyKeep developer tasks: ci, layering and names checks, the release build and the Windows installer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+# The capture version (crates/mk-capture-api/build/capture_version.rs, included):
+# version.json carries the same value the server and the desktop are built with.
+sha2.workspace = true
+
+[dev-dependencies]
+# RP1: version.json's capture version is the one built into the server and desktop.
+mk-capture-api.workspace = true
+# RP6: the installer script compiles with the real icon.
+mk-ui.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

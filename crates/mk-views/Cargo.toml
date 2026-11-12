@@ -1,0 +1,63 @@
+[package]
+name = "mk-views"
+description = "MoneyKeep's views: .slint files (Fluent style), SVG icons and the glue that shows mk-ui's view models in a Slint window (ui-slint.md revision 2). No business logic, no book access, no file or network IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+mk-core.workspace = true
+mk-ui.workspace = true
+slint = { workspace = true }
+# `renderer-software`: drawn pixels for the phone field contrast test
+# (mobile-capture.md revision 8, test 59); a crate already in the build.
+i-slint-backend-testing = { workspace = true, optional = true, features = ["renderer-software"] }
+
+[build-dependencies]
+slint-build = { workspace = true }
+
+[features]
+# The test harness (Slint's testing backend, pinned to an exact version).
+testing = ["dep:i-slint-backend-testing"]
+
+[dev-dependencies]
+mk-views = { path = ".", features = ["testing"] }
+mk-commands.workspace = true
+mk-connect.workspace = true
+mk-control.workspace = true
+mk-import.workspace = true
+mk-store.workspace = true
+moneykeep-server = { path = "../../apps/moneykeep-server" }
+serde_json.workspace = true
+tempfile.workspace = true
+rqrr = "0.10"
+i-slint-backend-testing.workspace = true
+png.workspace = true
+base64.workspace = true
+mk-capture-api.workspace = true
+
+[[test]]
+name = "ui"
+path = "tests/ui/main.rs"
+
+# The workspace lints, except that `unsafe_code` is `deny` rather than `forbid`: the
+# code Slint generates allows unsafe blocks internally. MoneyKeep's own code in this
+# crate still may not use `unsafe`.
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+indexing_slicing = "warn"
+float_arithmetic = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"

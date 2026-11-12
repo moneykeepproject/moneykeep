@@ -1,0 +1,20 @@
+[package]
+name = "mk-ledger"
+description = "MoneyKeep ledger rules: account and transaction validation. Pure logic, no IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+mk-core.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

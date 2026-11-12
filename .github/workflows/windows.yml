@@ -1,0 +1,102 @@
+# upgrade-resilience-1 Batch U3 (owner decision D3): the Windows-only code compiled and
+# tested on Windows, and the setup's upgrade paths run for real on a GitHub-hosted
+# runner (administrator, services, %ProgramData%). The scenarios share one runner and
+# run in order; scripts/ci/windows-upgrade.ps1 describes each one.
+name: windows
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      # The previous release's setup is read with the job's own token (no secrets).
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rust toolchain (stable, wasm32 for the phone app)
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          rustc --version
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/bin/trunk.exe
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: windows-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-cargo-
+
+      # 1. The whole workspace compiled on Windows, every target (the #[cfg(windows)]
+      #    code and tests among them, e.g. mk-dpapi's DPAPI round trip).
+      - name: Build the workspace
+        run: cargo build --workspace --all-targets
+
+      # The tests, except mk-views' long `ui` binary (it runs on Linux): mk-views has
+      # no other test target, so its library and doc tests run on their own.
+      - name: Test the workspace (without mk-views' ui binary)
+        run: |
+          cargo test --workspace --exclude mk-views
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test -p mk-views --lib
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test -p mk-views --doc
+
+      # 2. The setup (NSIS 3; installed with Chocolatey when the image has none).
+      - name: NSIS
+        run: |
+          $nsis = @("${env:ProgramFiles(x86)}\NSIS\makensis.exe", "$env:ProgramFiles\NSIS\makensis.exe")
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and -not ($nsis | Where-Object { Test-Path $_ })) {
+            choco install nsis -y --no-progress
+          }
+
+      - name: Build the setup
+        run: cargo xtask installer --no-wasm-opt
+
+      - name: Build the CI fixture tool
+        run: cargo build -p moneykeep-server --example ci_fixture
+
+      # 3. A server from before security-review-1 A1 upgraded by Setup.
+      - name: "Upgrade: pre-A1 service"
+        run: ./scripts/ci/windows-upgrade.ps1 -Scenario pre-a1
+
+      # 4. The same with a non-default install folder (H1): Setup /D=C:\MK.
+      - name: "Upgrade: install folder C:\\MK"
+        run: ./scripts/ci/windows-upgrade.ps1 -Scenario custom-folder
+
+      # 5. Uninstall keeping the data, Setup again, then the helper's
+      #    "Install the server again" plan.
+      - name: "Upgrade: uninstall keeping data, then reinstall"
+        run: ./scripts/ci/windows-upgrade.ps1 -Scenario reinstall
+
+      # 6. From the previous release's setup (its GitHub release asset); skipped with
+      #    a notice until a release has one.
+      - name: "Upgrade: from the previous release"
+        run: ./scripts/ci/windows-upgrade.ps1 -Scenario previous-release
+
+      # server.log, the helper's reports, the service's state and each scenario's
+      # step log (NSIS's standard build writes no install log of its own).
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-upgrade-logs
+          path: ${{ runner.temp }}/mk-artifacts
+          if-no-files-found: warn

@@ -1,0 +1,94 @@
+# cargo-deny policy. Run: cargo deny check  (also run by `cargo xtask ci` when installed)
+
+[graph]
+all-features = true
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    # Owner decision 2026-10-27: Boost Software License allowed in general
+    # (needed by the system clipboard support, app-desktop.md revision 30).
+    "BSL-1.0",
+]
+confidence-threshold = 0.9
+# The allowlist is policy, not inventory: entries need not be in use yet.
+unused-allowed-license = "allow"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[advisories]
+yanked = "warn"
+
+# Owner decision 2026-11-02 (ui-slint.md): the Slint user-interface toolkit is used
+# under the Slint Royalty-free License 2.0. The exception covers the Slint crate
+# family only (`slint`, `slint-build`, `slint-macros` and the `i-slint-*` crates);
+# the general allowlist above stays unchanged. MoneyKeep shows Slint's AboutSlint
+# widget in its About dialog (licence §2) and never exposes Slint's API to scripts
+# or plugins. See NOTICE and ATTRIBUTION.md.
+[[licenses.exceptions]]
+crate = "slint"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "slint-build"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "slint-macros"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-backend-selector"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-backend-testing"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-backend-winit"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-common"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-compiler"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-core"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-core-macros"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-renderer-femtovg"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-renderer-skia"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
+crate = "i-slint-renderer-software"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]

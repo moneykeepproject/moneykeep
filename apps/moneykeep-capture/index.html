@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#1f6f5c">
+  <!-- mobile-capture.md revision 15: the page's build; the server fills it in. -->
+  <meta name="moneykeep-capture-version" content="__MK_CAPTURE_VERSION__">
+  <title>MoneyKeep capture</title>
+  <link data-trunk rel="rust" data-bin="moneykeep-capture">
+  <link data-trunk rel="copy-file" href="web/start.js">
+  <link data-trunk rel="copy-file" href="web/shell.js">
+  <link data-trunk rel="copy-file" href="web/manifest.webmanifest">
+  <link data-trunk rel="copy-file" href="web/sw.js">
+  <link data-trunk rel="copy-dir" href="web/icons">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Capture">
+  <style>
+    /* mobile-capture.md revision 9: the page and the canvas fill the visible
+       viewport exactly. shell.js puts its size in --mk-vw / --mk-vh (dynamic
+       viewport units before it runs, 100% where those are missing). The canvas
+       rules are !important because Slint's web backend writes the window's size
+       into the canvas's inline style (and its minimum size as min-width /
+       min-height): that pinned the canvas to 390 x 780 CSS px on a larger phone. */
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      overflow: hidden; overscroll-behavior: none;
+      background: #f4f2ef;
+    }
+    body { position: fixed; inset: 0; }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #1f1d1b; }
+    }
+    canvas#canvas {
+      display: block; position: fixed; left: 0; top: 0; margin: 0; padding: 0; border: 0;
+      width: var(--mk-vw, 100vw) !important;
+      height: var(--mk-vh, 100%) !important;
+      min-width: 0 !important; min-height: 0 !important;
+      max-width: none !important; max-height: none !important;
+      box-sizing: content-box;
+      touch-action: manipulation;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+    @supports (height: 100dvh) {
+      canvas#canvas {
+        width: var(--mk-vw, 100dvw) !important;
+        height: var(--mk-vh, 100dvh) !important;
+      }
+    }
+    canvas#canvas:focus, canvas#canvas:focus-visible { outline: none; }
+    /* Read by shell.js: the safe-area insets as padding. */
+    #mk-insets {
+      position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    /* mobile-capture.md revision 18: the loading card, shown the instant the page
+       opens (no script needed), centered both ways in the visible area inside the
+       safe area: the app icon, the name, a status line and a thin progress bar.
+       shell.js fills in the progress, and removes the card (a 150 ms fade) once the
+       app has drawn its first frame. The app's own page colours, light and dark
+       (text 4.5:1 or more: about 13:1 and 5.6:1 on the page colour). */
+    #mk-loading {
+      --mk-page: #f4f2ef; --mk-text: #262421; --mk-muted: #6b655d;
+      --mk-accent: #0F5E5C; --mk-on-accent: #ffffff; --mk-track: #dcd7cf;
+      --mk-border: #8a8379;
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      box-sizing: border-box;
+      padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+               max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+      background: var(--mk-page); color: var(--mk-text);
+      font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+      opacity: 1; transition: opacity 150ms ease-out;
+    }
+    @media (prefers-color-scheme: dark) {
+      #mk-loading {
+        --mk-page: #1f1d1b; --mk-text: #ece8e2; --mk-muted: #b5afa6;
+        --mk-accent: #4FB3AE; --mk-on-accent: #0d1f1e; --mk-track: #45413d;
+        --mk-border: #857e76;
+      }
+    }
+    #mk-loading.mk-gone { opacity: 0; pointer-events: none; }
+    #mk-loading-card {
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      width: 100%; max-width: 320px;
+    }
+    #mk-loading .mk-icon { width: 96px; height: 96px; border-radius: 22px; display: block; }
+    #mk-loading .mk-title { margin: 8px 0 0; font-size: 22px; font-weight: 600; }
+    #mk-loading .mk-status { margin: 0; color: var(--mk-muted); min-height: 1.4em; }
+    #mk-loading .mk-status.mk-strong { color: var(--mk-text); font-weight: 600; }
+    #mk-loading .mk-detail { margin: 0; color: var(--mk-muted); text-wrap: balance; }
+    #mk-bar {
+      position: relative; overflow: hidden;
+      width: 240px; max-width: 100%; height: 4px; border-radius: 2px;
+      background: var(--mk-track);
+    }
+    #mk-fill {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+      border-radius: 2px; background: var(--mk-accent);
+      transition: width 120ms linear;
+    }
+    #mk-bar.mk-indeterminate #mk-fill {
+      width: 35%; animation: mk-slide 1.2s ease-in-out infinite;
+    }
+    @keyframes mk-slide { from { left: -35%; } to { left: 100%; } }
+    @media (prefers-reduced-motion: reduce) {
+      #mk-bar.mk-indeterminate #mk-fill { animation: none; left: 0; width: 100%; opacity: 0.5; }
+      #mk-loading { transition: none; }
+    }
+    #mk-actions, #mk-loading .mk-failed {
+      display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+      width: 100%; margin-top: 8px;
+    }
+    #mk-loading [hidden] { display: none !important; }
+    #mk-loading .mk-button {
+      font: inherit; font-weight: 600; min-height: 48px; padding: 0 24px;
+      border-radius: 8px; border: 1.5px solid var(--mk-border);
+      background: transparent; color: var(--mk-text);
+    }
+    #mk-loading .mk-button.mk-primary {
+      border-color: var(--mk-accent); background: var(--mk-accent); color: var(--mk-on-accent);
+    }
+    #mk-loading .mk-button:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="mk-loading" role="status" aria-busy="true" aria-live="polite">
+    <div id="mk-loading-card">
+      <img class="mk-icon" src="icons/icon-192.png" width="96" height="96" alt="">
+      <h1 class="mk-title">MoneyKeep Capture</h1>
+      <p id="mk-status" class="mk-status">Downloading…</p>
+      <div id="mk-bar" class="mk-indeterminate" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100"><div id="mk-fill"></div></div>
+      <p id="mk-detail" class="mk-detail" hidden></p>
+      <div id="mk-actions" hidden></div>
+    </div>
+  </div>
+  <div id="mk-insets" aria-hidden="true"></div>
+  <!-- upgrade-resilience-1 M8: the build again, so the service worker serves this
+       page's own files. -->
+  <script type="module" src="start.js?b=__MK_CAPTURE_VERSION__"></script>
+</body>
+</html>

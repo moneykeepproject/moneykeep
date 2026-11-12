@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements for MoneyKeep.app and the programs beside it
+     (moneykeep-server, keep-mcp): docs/specs/macos-release.md P2. Deliberately empty: the
+     programs are Rust, load no unsigned code, need no JIT and are not sandboxed (books and
+     backups live where the user puts them; the capture server listens on the network,
+     which needs no entitlement outside the sandbox; keys go to the login keychain, which
+     needs none either). Add an exception here only with a reason in a comment. -->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

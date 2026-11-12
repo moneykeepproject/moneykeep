@@ -1,0 +1,107 @@
+{
+  "FromDate": "04/20/2026",
+  "ToDate": "10/20/2026",
+  "TotalTransactionsAmount": "-$14,967.46",
+  "TotalFeesAndCommAmount": "$0.66",
+  "BrokerageTransactions": [
+    {
+      "Date": "10/02/2026",
+      "Action": "Buy to Open",
+      "Symbol": "XYZ 01/15/2027 50.00 P",
+      "Description": "PUT EXAMPLE CORP $50 EXP 01/15/27",
+      "Quantity": "1",
+      "Price": "$2.15",
+      "Fees & Comm": "$0.66",
+      "Amount": "-$215.66",
+      "AcctgRuleCd": "2"
+    },
+    {
+      "Date": "10/01/2026",
+      "Action": "Buy",
+      "Symbol": "11223EXA4",
+      "Description": "EXAMPLE SAVINGS 4.10%27CD FDIC INS DUE 04/01/27US",
+      "Quantity": "25,000",
+      "Price": "$100.00",
+      "Fees & Comm": "",
+      "Amount": "-$25,000.00",
+      "AcctgRuleCd": "1"
+    },
+    {
+      "Date": "09/28/2026",
+      "Action": "Credit Interest",
+      "Symbol": "",
+      "Description": "BANK INT 08/28-09/27",
+      "Quantity": "",
+      "Price": "",
+      "Fees & Comm": "",
+      "Amount": "$0.32",
+      "AcctgRuleCd": "2"
+    },
+    {
+      "Date": "08/03/2026",
+      "Action": "CD Interest",
+      "Symbol": "55667EXB2",
+      "Description": "SAMPLE BANK 3.90XXX**MATURED** US",
+      "Quantity": "",
+      "Price": "",
+      "Fees & Comm": "",
+      "Amount": "$247.88",
+      "AcctgRuleCd": "1"
+    },
+    {
+      "Date": "08/03/2026",
+      "Action": "CD Deposit Funds",
+      "Symbol": "55667EXB2",
+      "Description": "SAMPLE BANK 3.90XXX**MATURED** US",
+      "Quantity": "",
+      "Price": "",
+      "Fees & Comm": "",
+      "Amount": "$25,000.00",
+      "AcctgRuleCd": "1"
+    },
+    {
+      "Date": "08/03/2026",
+      "Action": "CD Deposit Adj",
+      "Symbol": "55667EXB2",
+      "Description": "SAMPLE BANK 3.90XXX**MATURED** US",
+      "Quantity": "-25,000",
+      "Price": "",
+      "Fees & Comm": "",
+      "Amount": "",
+      "AcctgRuleCd": "1"
+    },
+    {
+      "Date": "05/01/2026",
+      "Action": "Buy",
+      "Symbol": "55667EXB2",
+      "Description": "SAMPLE BANK 3.90%26CD FDIC INS DUE 08/03/26US",
+      "Quantity": "25,000",
+      "Price": "$100.00",
+      "Fees & Comm": "",
+      "Amount": "-$25,000.00",
+      "AcctgRuleCd": "1"
+    },
+    {
+      "Date": "04/22/2026",
+      "Action": "CD Deposit Funds",
+      "Symbol": "99887EXC3",
+      "Description": "OTHER BANK 3.70XXX**MATURED** US",
+      "Quantity": "",
+      "Price": "",
+      "Fees & Comm": "",
+      "Amount": "$10,000.00",
+      "AcctgRuleCd": "1"
+    },
+    {
+      "Date": "04/22/2026",
+      "Action": "CD Deposit Adj",
+      "Symbol": "99887EXC3",
+      "Description": "OTHER BANK 3.70XXX**MATURED** US",
+      "Quantity": "-10,000",
+      "Price": "",
+      "Fees & Comm": "",
+      "Amount": "",
+      "AcctgRuleCd": "1"
+    }
+  ]
+}

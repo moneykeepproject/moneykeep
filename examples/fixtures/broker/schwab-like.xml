@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<BrokerageHistoryResponse xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <FromDate>04/20/2026</FromDate>
+  <ToDate>10/20/2026</ToDate>
+  <TotalTransactionsAmount>-$14,967.46</TotalTransactionsAmount>
+  <TotalFeesAndCommAmount>$0.66</TotalFeesAndCommAmount>
+  <BrokerageTransactions>
+    <BrokerageTransaction>
+      <Date>10/02/2026</Date>
+      <Action>Buy to Open</Action>
+      <Symbol>XYZ 01/15/2027 50.00 P</Symbol>
+      <Description>PUT EXAMPLE CORP $50 EXP 01/15/27</Description>
+      <Quantity>1</Quantity>
+      <Price>$2.15</Price>
+      <FeesAndCommission>$0.66</FeesAndCommission>
+      <Amount>-$215.66</Amount>
+      <AcctgRuleCd>2</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>10/01/2026</Date>
+      <Action>Buy</Action>
+      <Symbol>11223EXA4</Symbol>
+      <Description>EXAMPLE SAVINGS 4.10%27CD FDIC INS DUE 04/01/27US</Description>
+      <Quantity>25,000</Quantity>
+      <Price>$100.00</Price>
+      <FeesAndCommission />
+      <Amount>-$25,000.00</Amount>
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>09/28/2026</Date>
+      <Action>Credit Interest</Action>
+      <Symbol />
+      <Description>BANK INT 08/28-09/27</Description>
+      <Quantity />
+      <Price />
+      <FeesAndCommission />
+      <Amount>$0.32</Amount>
+      <AcctgRuleCd>2</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>08/03/2026</Date>
+      <Action>CD Interest</Action>
+      <Symbol>55667EXB2</Symbol>
+      <Description>SAMPLE BANK 3.90XXX**MATURED** US</Description>
+      <Quantity />
+      <Price />
+      <FeesAndCommission />
+      <Amount>$247.88</Amount>
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>08/03/2026</Date>
+      <Action>CD Deposit Funds</Action>
+      <Symbol>55667EXB2</Symbol>
+      <Description>SAMPLE BANK 3.90XXX**MATURED** US</Description>
+      <Quantity />
+      <Price />
+      <FeesAndCommission />
+      <Amount>$25,000.00</Amount>
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>08/03/2026</Date>
+      <Action>CD Deposit Adj</Action>
+      <Symbol>55667EXB2</Symbol>
+      <Description>SAMPLE BANK 3.90XXX**MATURED** US</Description>
+      <Quantity>-25,000</Quantity>
+      <Price />
+      <FeesAndCommission />
+      <Amount />
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>05/01/2026</Date>
+      <Action>Buy</Action>
+      <Symbol>55667EXB2</Symbol>
+      <Description>SAMPLE BANK 3.90%26CD FDIC INS DUE 08/03/26US</Description>
+      <Quantity>25,000</Quantity>
+      <Price>$100.00</Price>
+      <FeesAndCommission />
+      <Amount>-$25,000.00</Amount>
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>04/22/2026</Date>
+      <Action>CD Deposit Funds</Action>
+      <Symbol>99887EXC3</Symbol>
+      <Description>OTHER BANK 3.70XXX**MATURED** US</Description>
+      <Quantity />
+      <Price />
+      <FeesAndCommission />
+      <Amount>$10,000.00</Amount>
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+    <BrokerageTransaction>
+      <Date>04/22/2026</Date>
+      <Action>CD Deposit Adj</Action>
+      <Symbol>99887EXC3</Symbol>
+      <Description>OTHER BANK 3.70XXX**MATURED** US</Description>
+      <Quantity>-10,000</Quantity>
+      <Price />
+      <FeesAndCommission />
+      <Amount />
+      <AcctgRuleCd>1</AcctgRuleCd>
+    </BrokerageTransaction>
+  </BrokerageTransactions>
+</BrokerageHistoryResponse>

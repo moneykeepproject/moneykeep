@@ -1,0 +1,290 @@
+// View-model structures, filled from mk-ui's controller (crates/mk-ui/src/ctl/ui.rs
+// describes each field). Numbers for kinds, tones and alignments are shared with it.
+
+// A legend entry; `tip` holds the full text when `text` was shortened to fit,
+// `index` counts the entries across lines and `name` is its accessible name when
+// it opens its series.
+export struct LegendVm { color: color, series: int, text: string, tip: string, index: int, name: string }
+
+// A clickable piece of a chart in the drawing's 0–1000 box: where it is hit
+// (`h…`), what lights up (`m…`, a ring for a point) and its name and value.
+export struct ChartPieceVm {
+    hx0: float, hy0: float, hx1: float, hy1: float,
+    mx0: float, my0: float, mx1: float, my1: float,
+    ring: bool,
+    name: string,
+}
+
+// One line of a chart's legend (the controller wraps the entries to the width).
+export struct LegendRowVm { entries: [LegendVm] }
+
+export struct ChartPathVm {
+    commands: string,
+    fill: color,
+    stroke: color,
+    stroke-width: float,
+    series: int,
+    series-fill: bool,
+    series-stroke: bool,
+    label: string,
+}
+
+export struct ChartLabelVm { text: string, x: float, y: float, align: int }
+
+export struct ChartVm {
+    paths: [ChartPathVm],
+    labels: [ChartLabelVm],
+    legend: [LegendRowVm],
+    height: length,
+    // An accessible note (the axis ticks).
+    note: string,
+    pieces: [ChartPieceVm],
+    // The legend and the empty area open something too.
+    open-more: bool,
+    legend-count: int,
+}
+
+// An item inside a table cell's group (the same fields as ItemVm).
+export struct CellVm {
+    kind: int,
+    id: string,
+    text: string,
+    label: string,
+    value: string,
+    desc: string,
+    placeholder: string,
+    options: [string],
+    index: int,
+    icon: string,
+    checked: bool,
+    enabled: bool,
+    tone: int,
+    align: int,
+    mono: bool,
+    bold: bool,
+    strike: bool,
+    width: length,
+    grow: bool,
+    focus: int,
+    select: int,
+    picture: image,
+    has-picture: bool,
+    chart: ChartVm,
+    number: int,
+    minimum: int,
+    maximum: int,
+    error: string,
+    color: color,
+    report-focus: bool,
+}
+
+export struct ItemVm {
+    kind: int,
+    id: string,
+    text: string,
+    label: string,
+    value: string,
+    desc: string,
+    placeholder: string,
+    options: [string],
+    index: int,
+    icon: string,
+    checked: bool,
+    enabled: bool,
+    tone: int,
+    align: int,
+    mono: bool,
+    bold: bool,
+    strike: bool,
+    width: length,
+    grow: bool,
+    focus: int,
+    select: int,
+    picture: image,
+    has-picture: bool,
+    chart: ChartVm,
+    number: int,
+    minimum: int,
+    maximum: int,
+    error: string,
+    color: color,
+    // Report keyboard focus (the message band's buttons; app-desktop.md rev. 37).
+    report-focus: bool,
+    // Items of a cell group (kind group).
+    children: [CellVm],
+}
+
+export struct RowVm {
+    kind: int,
+    id: string,
+    caption: string,
+    label: string,
+    selected: bool,
+    indent: int,
+    items: [ItemVm],
+    menu: [string],
+    tone: int,
+    // No item takes the spare width (a filler does).
+    filler: bool,
+    // A wrapping row: the estimated widest item and the whole row's width.
+    wrap-cell: length,
+    wrap-total: length,
+}
+
+export struct ColumnVm { title: string, align: int, width: length, sort: int, id: string, weight: int, over: string }
+
+export struct SectionVm {
+    kind: int,
+    id: string,
+    title: string,
+    subtitle: string,
+    open: bool,
+    columns: [ColumnVm],
+    rows: [RowVm],
+    visible-rows: int,
+    tone: int,
+    width: length,
+    center: bool,
+    // Windowed tables (registers).
+    total-rows: int,
+    first-row: int,
+    scroll-row: int,
+    scroll-serial: int,
+    row-height: length,
+    // Period tables: 1 first column fixed, 2 first and last fixed.
+    frozen: int,
+    // Inside a dashboard block: no card of its own.
+    flat: bool,
+    // A table whose columns have titles.
+    header: bool,
+}
+
+// `sheet`: 0 a dialog, 1 a bottom sheet, 2 a full-screen viewer (the phone).
+export struct DialogVm { id: string, title: string, sections: [SectionVm], width: length, close-label: string, icon: string, compact: bool, sheet: int }
+
+// A dashboard block on the board grid.
+export struct BlockVm {
+    id: string,
+    title: string,
+    title-link: bool,
+    head: [ItemVm],
+    x: int, y: int, w: int, h: int,
+    has-ghost: bool,
+    gx: int, gy: int, gw: int, gh: int,
+    sections: [SectionVm],
+}
+
+export struct PageVm {
+    title: string,
+    toolbar: [ItemVm],
+    side: [SectionVm],
+    side-width: length,
+    sections: [SectionVm],
+    scroll: bool,
+    board: [BlockVm],
+    board-edit: bool,
+    board-rows: int,
+    // The bar fixed to the bottom of the phone's screen.
+    footer: [SectionVm],
+    // The phone's tab bar, at the very bottom (mobile-capture.md revision 9).
+    tabs: [ItemVm],
+}
+
+// Item kinds (mk-ui `Kind`).
+export global K {
+    out property <int> text: 0;
+    out property <int> title: 1;
+    out property <int> subtitle: 2;
+    out property <int> caption: 3;
+    out property <int> button: 4;
+    out property <int> primary: 5;
+    out property <int> link: 6;
+    out property <int> field: 7;
+    out property <int> password: 8;
+    out property <int> multiline: 9;
+    out property <int> check: 10;
+    out property <int> radio: 11;
+    out property <int> combo: 12;
+    out property <int> tab: 13;
+    out property <int> toggle: 14;
+    out property <int> icon-button: 15;
+    out property <int> separator: 16;
+    out property <int> spacer: 17;
+    out property <int> progress: 18;
+    out property <int> image: 19;
+    out property <int> amount: 20;
+    out property <int> menu: 21;
+    out property <int> badge: 22;
+    out property <int> switch: 23;
+    out property <int> tile: 24;
+    out property <int> chart: 25;
+    out property <int> icon: 26;
+    out property <int> suggest: 27;
+    out property <int> list-item: 28;
+    out property <int> about-slint: 29;
+    out property <int> light: 30;
+    out property <int> slider: 31;
+    out property <int> menu-check: 32;
+    out property <int> group: 33;
+    out property <int> action-tile: 34;
+    out property <int> key: 35;
+    out property <int> day: 36;
+    out property <int> amount-card: 37;
+    out property <int> field-button: 38;
+    out property <int> thumb: 39;
+    out property <int> bottom-tab: 40;
+    out property <int> book-card: 41;
+    out property <int> picture-choice: 42;
+    out property <int> crop-frame: 43;
+    out property <int> paint-canvas: 44;
+}
+
+// Events sent back (mk-ui `Ev`).
+export global E {
+    out property <int> click: 0;
+    out property <int> edit: 1;
+    out property <int> enter: 2;
+    out property <int> focus: 3;
+    out property <int> blur: 4;
+    out property <int> select: 5;
+    out property <int> secondary: 6;
+    out property <int> key: 7;
+}
+
+// The one channel for user actions: every view calls `Act.act(id, event, value)`,
+// and keys no item took go to `Act.key(name)`.
+export global Act {
+    callback act(string, int, string);
+    callback key(string) -> bool;
+    // Hovered item description (tooltip), shown by the window.
+    in-out property <string> tip;
+    in-out property <length> tip-x;
+    in-out property <length> tip-y;
+}
+
+// Key names as the controller reads them: "ctrl+shift+z", "escape", "down", "n".
+export global Keys {
+    public pure function name(e: KeyEvent) -> string {
+        let mods = (e.modifiers.control || e.modifiers.meta ? "ctrl+" : "") + (e.modifiers.shift ? "shift+" : "") + (e.modifiers.alt ? "alt+" : "");
+        if e.text == Key.Escape { return mods + "escape"; }
+        if e.text == Key.Return { return mods + "enter"; }
+        if e.text == Key.Tab { return mods + "tab"; }
+        if e.text == Key.Backtab { return "shift+tab"; }
+        if e.text == Key.UpArrow { return mods + "up"; }
+        if e.text == Key.DownArrow { return mods + "down"; }
+        if e.text == Key.LeftArrow { return mods + "left"; }
+        if e.text == Key.RightArrow { return mods + "right"; }
+        if e.text == Key.PageUp { return mods + "pageup"; }
+        if e.text == Key.PageDown { return mods + "pagedown"; }
+        if e.text == Key.Home { return mods + "home"; }
+        if e.text == Key.End { return mods + "end"; }
+        if e.text == Key.Delete { return mods + "delete"; }
+        if e.text == Key.Backspace { return mods + "backspace"; }
+        if e.text == Key.F1 { return mods + "f1"; }
+        if e.text == Key.F2 { return mods + "f2"; }
+        if e.text == Key.F6 { return mods + "f6"; }
+        if e.text == Key.Insert { return mods + "insert"; }
+        if e.text == Key.Control || e.text == Key.Shift || e.text == Key.Alt || e.text == Key.Meta { return ""; }
+        mods + e.text.to-lowercase()
+    }
+}

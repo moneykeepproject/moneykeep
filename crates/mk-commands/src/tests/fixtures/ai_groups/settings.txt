@@ -1,0 +1,1 @@
+book.clear_icon_image book.set_closing_date book.set_icon_image book.set_picture book.update_profile module.disable module.enable module.set_setting processor.set setting.set

@@ -1,0 +1,1107 @@
+// The building blocks screens are made of: items (texts, buttons, fields …), rows,
+// sections (cards, tables, tile grids) and pages with dialogs. Every interactive
+// element reports through `Act.act(id, event, value)`; its accessibility id is
+// "<role>|<id>" so tests can tell what it is.
+
+import { Button, LineEdit, TextEdit, CheckBox, Switch, Slider, ProgressIndicator, Spinner, ScrollView, ListView, AboutSlint } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { ItemVm, RowVm, SectionVm, PageVm, DialogVm, ColumnVm, ChartVm, BlockVm, K, E, Act, Keys } from "vm.slint";
+import { ItemView, ChartView, Tile, ActionTile } from "item.slint";
+import { BookCard } from "cards.slint";
+import { Card, Icon, IconButton, Chip, ChipTab, ChipCheck, LinkText, Overlay, VBar, HBar } from "widgets.slint";
+
+
+// One row of items.
+export component RowView inherits Rectangle {
+    in property <RowVm> line;
+    in property <[ColumnVm]> columns;
+    property <bool> clickable: line.id != "";
+    min-height: lay.min-height;
+    preferred-height: lay.preferred-height;
+    min-width: lay.min-width;
+    border-radius: line.kind == 4 ? Theme.radius-small : 0px;
+    background: line.selected ? Theme.accent-soft : clickable && ta.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.quick; }
+    accessible-role: none;
+    accessible-label: line.kind == 4 || (line.kind == 3 && clickable) ? line.label : "";
+    accessible-id: line.kind == 4 ? "listitem|" + line.id : (line.kind == 3 && clickable) ? "row|" + line.id : "";
+    accessible-item-selectable: line.kind == 4 || (line.kind == 3 && clickable);
+    accessible-item-selected: line.selected;
+    accessible-action-default => { if clickable { Act.act(line.id, E.click, ""); } }
+    ta := TouchArea {
+        enabled: clickable || line.menu.length > 0;
+        mouse-cursor: clickable ? pointer : default;
+        clicked => { if clickable { Act.act(line.id, E.click, ""); } }
+        double-clicked => { if clickable { Act.act(line.id, E.enter, ""); } }
+        pointer-event(e) => {
+            if e.button == PointerEventButton.right && e.kind == PointerEventKind.up && line.menu.length > 0 {
+                Overlay.show(line.id != "" ? line.id : line.label, line.menu, false, 3, -1, root.absolute-position.x + self.mouse-x, root.absolute-position.y + self.mouse-y, 200px, "menuitem");
+            }
+        }
+    }
+    lay := HorizontalLayout {
+        padding-left: line.indent * 16px + (line.kind == 4 || line.kind == 3 ? Theme.s2 : 0px);
+        padding-right: line.kind == 4 || line.kind == 3 ? Theme.s2 : 0px;
+        padding-top: line.kind == 4 ? 6px : line.kind == 3 ? 4px : 0px;
+        padding-bottom: line.kind == 4 ? 6px : line.kind == 3 ? 4px : 0px;
+        spacing: line.kind == 3 ? Theme.s3 : Theme.s2;
+        alignment: line.kind == 5 ? end : stretch;
+        if line.kind == 1: Text {
+            width: 168px;
+            text: line.caption;
+            color: Theme.text-secondary;
+            font-size: Theme.body-size;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            // A label naming the field after it (which carries the name too).
+            accessible-role: text;
+            accessible-label: line.caption;
+            accessible-id: "label|";
+        }
+        if line.kind == 3: HorizontalLayout {
+            spacing: Theme.cell-gap;
+            for it[i] in line.items: Rectangle {
+                property <bool> plain: it.kind == K.text || it.kind == K.caption || it.kind == K.amount || it.kind == K.badge || it.kind == K.icon || it.kind == K.title || it.kind == K.subtitle;
+                horizontal-stretch: i < columns.length && columns[i].width > 0 ? 0 : i < columns.length ? columns[i].weight : 1;
+                preferred-width: i < columns.length && columns[i].width > 0 ? columns[i].width : 80px * (i < columns.length ? columns[i].weight : 1);
+                min-width: i < columns.length && columns[i].width > 0 ? columns[i].width : Theme.narrow ? 32px : 40px;
+                max-width: i < columns.length && columns[i].width > 0 ? columns[i].width : 100000px;
+                min-height: cell.min-height;
+                // A click on a cell opens the row at that column.
+                if clickable && !plain: TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Act.act(line.id, E.click, i); }
+                    double-clicked => { Act.act(line.id, E.enter, i); }
+                    pointer-event(e) => {
+                        if e.button == PointerEventButton.right && e.kind == PointerEventKind.up && line.menu.length > 0 {
+                            Overlay.show(line.id, line.menu, false, 3, -1, self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y, 200px, "menuitem");
+                        }
+                    }
+                }
+                cell := ItemView {
+                    width: 100%;
+                    item: {
+                        kind: it.kind, id: it.id, text: it.text, label: it.label, value: it.value, desc: it.desc,
+                        placeholder: it.placeholder, options: it.options, index: it.index, icon: it.icon,
+                        checked: it.checked, enabled: it.enabled, tone: it.tone,
+                        align: it.align != 0 ? it.align : i < columns.length ? columns[i].align : 0,
+                        mono: it.mono, bold: it.bold, strike: it.strike,
+                        // A field in a fixed-width column is exactly that wide; its own
+                        // 160 px default spilled into the next columns (invoice lines).
+                        width: it.width > 0 ? it.width : i < columns.length && columns[i].width > 0 ? columns[i].width : 0px,
+                        grow: true,
+                        focus: it.focus, select: it.select, picture: it.picture, has-picture: it.has-picture,
+                        chart: it.chart, number: it.number, minimum: it.minimum, maximum: it.maximum,
+                        error: it.error, color: it.color, children: it.children,
+                    };
+                }
+                // Over a plain text the click target is on top (texts with a
+                // tooltip would take the click); it shows the tooltip itself.
+                if clickable && plain: TouchArea {
+                    changed has-hover => {
+                        if it.desc == "" { return; }
+                        if self.has-hover {
+                            Act.tip = it.desc;
+                            Act.tip-x = self.absolute-position.x;
+                            Act.tip-y = self.absolute-position.y + self.height + 4px;
+                        } else if Act.tip == it.desc {
+                            Act.tip = "";
+                        }
+                    }
+                    mouse-cursor: pointer;
+                    clicked => { Act.act(line.id, E.click, i); }
+                    double-clicked => { Act.act(line.id, E.enter, i); }
+                    pointer-event(e) => {
+                        if e.button == PointerEventButton.right && e.kind == PointerEventKind.up && line.menu.length > 0 {
+                            Overlay.show(line.id, line.menu, false, 3, -1, self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y, 200px, "menuitem");
+                        }
+                    }
+                }
+            }
+        }
+        if line.kind != 3 && line.kind != 5 && line.kind != 2: HorizontalLayout {
+            spacing: Theme.s2;
+            horizontal-stretch: 1;
+            for it in line.items: ItemView { item: it; }
+            if line.filler: Rectangle { horizontal-stretch: 1; }
+        }
+        // A wrapping row: one line when it fits (by the glue's estimate), else a
+        // grid of equal cells. Its width never depends on the choice.
+        if line.kind == 2: Rectangle {
+            horizontal-stretch: 1;
+            min-width: min(line.wrap-cell, 160px);
+            preferred-width: line.wrap-total;
+            property <bool> one-line: line.wrap-total <= self.width;
+            property <length> cell: min(self.width, line.wrap-cell);
+            property <int> cols: max(1, Math.floor((self.width + Theme.s2) / (cell + Theme.s2)));
+            // Picture choices (revision 40) are taller than a control.
+            property <length> rowh: line.items.length > 0 && line.items[0].kind == K.picture-choice ? max(Theme.control-height, line.items[0].width) : Theme.control-height;
+            min-height: one-line ? wl.min-height : Math.ceil(line.items.length / cols) * (rowh + Theme.s2) - Theme.s2;
+            preferred-height: self.min-height;
+            wl := HorizontalLayout {
+                visible: one-line;
+                width: parent.width;
+                height: one-line ? parent.height : self.min-height;
+                spacing: Theme.s2;
+                for it in line.items: ItemView { item: it; }
+                if line.filler: Rectangle { horizontal-stretch: 1; }
+            }
+            if !one-line: Rectangle {
+                for it[i] in line.items: ItemView {
+                    item: it;
+                    x: Math.mod(i, cols) * (cell + Theme.s2);
+                    y: Math.floor(i / cols) * (rowh + Theme.s2);
+                    width: cell;
+                    height: rowh;
+                }
+            }
+        }
+        if line.kind == 5: HorizontalLayout {
+            spacing: Theme.s2;
+            alignment: end;
+            for it in line.items: ItemView { item: it; }
+        }
+    }
+}
+
+// A clickable list entry.
+export component ListRowView inherits RowView {
+    accessible-role: list-item;
+}
+
+// A clickable table row (opens what it shows).
+export component TableRowView inherits RowView {
+    accessible-role: list-item;
+}
+
+// A row of either kind.
+export component AnyRow inherits VerticalLayout {
+    in property <RowVm> line;
+    in property <[ColumnVm]> columns;
+    if line.kind == 4: ListRowView { line: line; columns: columns; }
+    if line.kind == 3 && line.id != "": TableRowView { line: line; columns: columns; }
+    if line.kind != 4 && !(line.kind == 3 && line.id != ""): RowView { line: line; columns: columns; }
+}
+
+// A windowed table (registers): a virtualised list over all rows; reports the
+// first row in view so the controller sends the rows around it.
+component WindowTable inherits Rectangle {
+    in property <SectionVm> section;
+    property <int> serial: section.scroll-serial;
+    property <length> rh: section.row-height > 0 ? section.row-height : 36px;
+    min-height: rh * 5;
+    lv := ListView {
+        width: parent.width - rbar.width;
+        x: 0;
+        height: 100%;
+        vertical-scrollbar-policy: always-off;
+        horizontal-scrollbar-policy: always-off;
+        for r in section.rows: AnyRow {
+            height: rh;
+            line: r;
+            columns: section.columns;
+        }
+        changed content-y => {
+            Act.act(section.id, E.key, "scroll:" + Math.max(0, Math.floor(-self.content-y / rh)));
+        }
+    }
+    rbar := VBar {
+        x: parent.width - self.width;
+        height: parent.height;
+        offset <=> lv.content-y;
+        total: section.total-rows * rh;
+        view: root.height;
+        aid: section.id;
+    }
+    // The last offset set for a request: until the reader scrolls, a change of
+    // height (the first layouts) scrolls again so the row stays in view.
+    property <length> set-y: 1px;
+    property <bool> follow;
+    function scroll() {
+        let target = section.scroll-row * rh - root.height / 2 + rh / 2;
+        let most = Math.max(0px, section.total-rows * rh - root.height);
+        set-y = -Math.max(0px, Math.min(most, target));
+        follow = true;
+        settle = true;
+        lv.content-y = set-y;
+        vh-at-set = vh;
+    }
+    property <length> vh-at-set;
+    // The list re-reads its rows after the jump (the controller sends the rows
+    // around it) and may pull the offset back while it does: put it once more.
+    property <bool> settle;
+    Timer {
+        interval: 40ms;
+        running: settle;
+        triggered => {
+            settle = false;
+            if follow && cy != set-y { lv.content-y = set-y; }
+        }
+    }
+    property <length> vh: root.height;
+    property <length> cy: lv.content-y;
+    property <length> vph: lv.content-height;
+    // (While the list still estimates its height it clamps the offset itself;
+    // only a change after that is the reader's.)
+    changed cy => { if cy != set-y && vh == vh-at-set && vph >= section.total-rows * rh - 0.5px { follow = false; } }
+    changed serial => { scroll(); }
+    changed vh => { if follow { scroll(); } }
+    changed vph => { if follow { scroll(); } }
+    init => { if section.scroll-serial > 0 { scroll(); } }
+}
+
+component TableHeader inherits Rectangle {
+    in property <[ColumnVm]> columns;
+    // Room kept for the scroll bar of the rows below (windowed tables).
+    in property <length> gutter;
+    min-height: 32px;
+    border-width: 0px;
+    HorizontalLayout {
+        padding-left: Theme.s2;
+        padding-right: Theme.s2 + gutter;
+        spacing: Theme.cell-gap;
+        for c in columns: Rectangle {
+            horizontal-stretch: c.width > 0 ? 0 : c.weight;
+            preferred-width: c.width > 0 ? c.width : 80px * c.weight;
+            min-width: c.width > 0 ? c.width : Theme.narrow ? 32px : 40px;
+            max-width: c.width > 0 ? c.width : 100000px;
+            accessible-role: text;
+            accessible-label: c.title;
+            accessible-id: c.id != "" ? "header|" + c.id : "";
+            accessible-action-default => { if c.id != "" { Act.act(c.id, E.click, ""); } }
+            HorizontalLayout {
+                spacing: Theme.s1;
+                alignment: c.align == 2 ? end : start;
+                Text {
+                    text: c.title;
+                    color: Theme.text-secondary;
+                    font-size: Theme.caption-size;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    accessible-role: none;
+                }
+                if c.sort != 0: Text {
+                    text: c.sort == 1 ? "▲" : "▼";
+                    color: Theme.accent;
+                    font-size: 9px;
+                    vertical-alignment: center;
+                    accessible-role: none;
+                }
+            }
+            TouchArea {
+                enabled: c.id != "";
+                mouse-cursor: c.id != "" ? pointer : default;
+                clicked => { Act.act(c.id, E.click, ""); }
+            }
+        }
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.border;
+    }
+}
+
+
+// One cell of a period table.
+component PeriodCell inherits Rectangle {
+    in property <ItemVm> it;
+    in property <int> align;
+    height: 28px;
+    ItemView {
+        width: 100%;
+        y: (parent.height - self.height) / 2;
+        item: {
+            kind: it.kind, id: it.id, text: it.text, label: it.label, value: it.value, desc: it.desc,
+            placeholder: it.placeholder, options: it.options, index: it.index, icon: it.icon,
+            checked: it.checked, enabled: it.enabled, tone: it.tone,
+            align: it.align != 0 ? it.align : align,
+            mono: it.mono, bold: it.bold, strike: it.strike, width: it.width, grow: true,
+            focus: it.focus, select: it.select, picture: it.picture, has-picture: it.has-picture,
+            chart: it.chart, number: it.number, minimum: it.minimum, maximum: it.maximum,
+            error: it.error, color: it.color, children: it.children,
+        };
+    }
+}
+
+// A two-line period header: the year (when it changes) over the short label.
+component PeriodHead inherits VerticalLayout {
+    in property <ColumnVm> c;
+    height: 40px;
+    alignment: end;
+    if c.over != "": Text {
+        text: c.over;
+        horizontal-alignment: c.align == 2 ? right : left;
+        color: Theme.text-secondary;
+        font-size: Theme.caption-size;
+        accessible-role: text;
+        accessible-label: c.over;
+    }
+    Text {
+        text: c.title;
+        horizontal-alignment: c.align == 2 ? right : left;
+        font-weight: 600;
+        color: Theme.text;
+        accessible-role: text;
+        accessible-label: c.title;
+    }
+}
+
+// A table with one column per period: the name column (and the Total column) stay
+// put; the period columns between scroll sideways when they do not fit.
+component PeriodTable inherits HorizontalLayout {
+    in property <SectionVm> section;
+    property <int> n: section.columns.length;
+    property <int> last: section.frozen == 2 ? n - 1 : n;
+    property <length> mid-w: section.row-height;
+    spacing: Theme.s3;
+    VerticalLayout {
+        horizontal-stretch: 1;
+        // The name column's width (from its longest name, capped) so names stay on
+        // one line when the periods scroll.
+        min-width: n > 0 ? max(120px, section.columns[0].width) : 120px;
+        alignment: start;
+        if n > 0: PeriodHead { c: section.columns[0]; }
+        for r in section.rows: Rectangle {
+            height: 28px;
+            HorizontalLayout {
+                padding-left: r.indent * 14px;
+                if r.items.length > 0: PeriodCell { it: r.items[0]; align: 0; }
+            }
+        }
+    }
+    // The periods, scrolled sideways with their own bar below them.
+    VerticalLayout {
+    horizontal-stretch: 0;
+    preferred-width: mid-w + 16px;
+    max-width: mid-w + 16px;
+    min-width: min(mid-w + 16px, 96px);
+    alignment: start;
+    sv := ScrollView {
+        property <length> content-w: mid-w;
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        height: 40px + section.rows.length * 28px;
+        content-width: content-w;
+        content-height: 40px + section.rows.length * 28px;
+        VerticalLayout {
+            HorizontalLayout {
+                spacing: Theme.s3;
+                for c[i] in section.columns: Rectangle {
+                    visible: i > 0 && i < last;
+                    width: i > 0 && i < last ? c.width : 0px;
+                    PeriodHead { width: 100%; c: c; }
+                }
+            }
+            for r in section.rows: HorizontalLayout {
+                spacing: Theme.s3;
+                for it[i] in r.items: Rectangle {
+                    visible: i > 0 && i < last;
+                    width: i > 0 && i < last && i < n ? section.columns[i].width : 0px;
+                    PeriodCell { width: 100%; it: it; align: 2; }
+                }
+            }
+        }
+        // Fades at a clipped edge show there is more to scroll to.
+        if -self.content-x > 1px: Rectangle {
+            x: 0; width: 24px; height: 100%;
+            background: @linear-gradient(90deg, Theme.surface 0%, Theme.surface.transparentize(100%) 100%);
+        }
+        if self.content-x + self.content-w > self.visible-width + 1px: Rectangle {
+            x: parent.width - 24px; width: 24px; height: 100%;
+            background: @linear-gradient(90deg, Theme.surface.transparentize(100%) 0%, Theme.surface 100%);
+        }
+    }
+    HBar {
+        offset <=> sv.content-x;
+        total: sv.content-width;
+        view: sv.visible-width;
+        aid: section.id + "/periods";
+        name: "Periods scroll sideways";
+    }
+    }
+    if section.frozen == 2 && n > 0: VerticalLayout {
+        horizontal-stretch: 0;
+        alignment: start;
+        width: section.columns[n - 1].width;
+        PeriodHead { c: section.columns[n - 1]; }
+        for r in section.rows: PeriodCell {
+            it: r.items.length >= n ? r.items[n - 1] : r.items[0];
+            visible: r.items.length >= n;
+            align: 2;
+        }
+    }
+}
+
+// A block of rows: plain, card, table, tile grid, folding card or banner.
+export component SectionView inherits VerticalLayout {
+    in property <SectionVm> section;
+    vertical-stretch: section.total-rows > 0 ? 1 : 0;
+    property <bool> carded: section.kind == 1 || section.kind == 2 || section.kind == 4;
+    max-width: section.width > 0 ? section.width : 100000px;
+    if section.kind == 0: VerticalLayout {
+        spacing: Theme.s2;
+        for r in section.rows: AnyRow { line: r; }
+    }
+    if section.kind == 5: Rectangle {
+        border-radius: Theme.radius;
+        background: Theme.tone-bg(section.tone);
+        min-height: bl.min-height;
+        // A banner keeps its own height when nothing on the page stretches (an
+        // empty register under a review band).
+        max-height: max(bl.min-height, bl.preferred-height);
+        bl := VerticalLayout {
+            padding-left: Theme.s4;
+            padding-right: Theme.s3;
+            padding-top: Theme.s2;
+            padding-bottom: Theme.s2;
+            spacing: Theme.s1;
+            for r in section.rows: AnyRow { line: r; }
+        }
+    }
+    if carded: Card {
+        min-height: cl.min-height;
+        // Inside a dashboard block the block is the card.
+        background: section.flat ? transparent : Theme.surface;
+        border-width: section.flat ? 0px : 1px;
+        drop-shadow-blur: section.flat ? 0px : 2px;
+        cl := VerticalLayout {
+            padding: section.flat ? 0px : Theme.card-padding;
+            spacing: Theme.s2;
+            if section.title != "" && section.kind != 4: Text {
+                text: section.title;
+                font-size: Theme.subtitle-size;
+                font-weight: 600;
+                color: Theme.text;
+                accessible-role: text;
+                accessible-label: section.title;
+            }
+            if section.kind == 4: Rectangle {
+                min-height: 28px;
+                accessible-role: button;
+                accessible-label: section.title;
+                accessible-id: "disclosure|" + section.id;
+                accessible-expandable: true;
+                accessible-expanded: section.open;
+                accessible-action-default => { Act.act(section.id, E.click, ""); }
+                HorizontalLayout {
+                    spacing: Theme.s2;
+                    Icon {
+                        name: section.open ? "chevron-small" : "forward";
+                        width: 14px;
+                        height: 14px;
+                        y: (parent.height - self.height) / 2;
+                        tint: Theme.text-secondary;
+                    }
+                    Text {
+                        text: section.title;
+                        font-size: Theme.body-size;
+                        font-weight: 600;
+                        color: Theme.text;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        accessible-role: none;
+                    }
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Act.act(section.id, E.click, ""); }
+                }
+            }
+            if section.subtitle != "": Text {
+                text: section.subtitle;
+                color: Theme.text-secondary;
+                font-size: Theme.caption-size;
+                wrap: word-wrap;
+            }
+            if section.kind == 2 && section.frozen > 0: PeriodTable { section: section; }
+            if section.kind == 2 && section.frozen == 0 && section.header: TableHeader { columns: section.columns; gutter: section.total-rows > 0 ? Theme.scroll-width : 0px; }
+            if section.kind == 2 && section.total-rows > 0: WindowTable { section: section; vertical-stretch: 1; }
+            if section.kind == 2 && section.total-rows == 0 && section.visible-rows > 0 && section.rows.length > section.visible-rows: ListView {
+                height: section.visible-rows * 36px;
+                for r in section.rows: AnyRow { line: r; columns: section.columns; }
+            }
+            if section.frozen == 0 && section.total-rows == 0 && !(section.kind == 2 && section.visible-rows > 0 && section.rows.length > section.visible-rows) && (section.kind != 4 || section.open): VerticalLayout {
+                spacing: section.kind == 2 ? 0px : Theme.s2;
+                for r in section.rows: AnyRow { line: r; columns: section.columns; }
+            }
+        }
+    }
+    // Square action tiles (the phone): 2 per row on phones, 3 on wider screens
+    // (from 440 px: the phone's 480 px column less its margins), each 120–160 px.
+    property <bool> square: section.kind == 3 && section.rows.length > 0 && section.rows[0].items.length > 0 && section.rows[0].items[0].kind == K.action-tile;
+    if section.kind == 3 && square: Rectangle {
+        property <length> gap: 12px;
+        property <int> cols: self.width >= 440px ? 3 : 2;
+        property <length> side: max(120px, min(160px, (self.width - gap * (cols - 1)) / cols));
+        property <int> count: section.rows[0].items.length;
+        min-width: 2 * 120px + gap;
+        min-height: Math.ceil(count / cols) * (side + gap) - gap;
+        accessible-role: list;
+        accessible-label: section.title;
+        for t[i] in section.rows[0].items: ActionTile {
+            x: Math.mod(i, cols) * (side + gap);
+            y: Math.floor(i / cols) * (side + gap);
+            width: side;
+            height: side;
+            item: t;
+        }
+    }
+    // A grid of equal columns (the phone's keypad and calendar): each item at its
+    // column (`minimum`), spanning `maximum` columns, rows `row-height` tall.
+    if section.kind == 6: Rectangle {
+        property <length> gap: Theme.s2;
+        property <int> cols: max(1, section.columns.length);
+        property <length> rh: section.row-height > 0 ? section.row-height : 48px;
+        property <length> cw: (self.width - gap * (cols - 1)) / cols;
+        min-width: cols * 40px + (cols - 1) * gap;
+        min-height: section.rows.length * (rh + gap) - (section.rows.length > 0 ? gap : 0px);
+        for r[ri] in section.rows: Rectangle {
+            x: 0;
+            y: ri * (rh + gap);
+            width: parent.width;
+            height: rh;
+            for it in r.items: ItemView {
+                x: it.minimum * (cw + gap);
+                y: 0;
+                width: it.maximum * cw + (it.maximum - 1) * gap;
+                height: rh;
+                item: it;
+            }
+        }
+    }
+    // Book cards (app-desktop.md revision 40): 374 × 312 (narrower in a narrow
+    // window), sharing 1 px rules, as many columns as fit, centred.
+    property <bool> cards: section.kind == 3 && section.rows.length > 0 && section.rows[0].items.length > 0 && section.rows[0].items[0].kind == K.book-card;
+    if section.kind == 3 && cards: Rectangle {
+        property <int> count: section.rows[0].items.length;
+        property <length> cw: min(374px, self.width);
+        property <length> ch: 312px;
+        property <int> cols: max(1, Math.floor((self.width + 0.5px) / cw));
+        property <int> used: min(cols, count);
+        property <length> offset: section.center ? max(0px, (self.width - used * cw) / 2) : 0px;
+        min-width: 240px;
+        min-height: Math.ceil(count / cols) * ch;
+        accessible-role: list;
+        accessible-label: section.title;
+        for t[i] in section.rows[0].items: BookCard {
+            x: offset + Math.mod(i, cols) * cw;
+            y: Math.floor(i / cols) * ch;
+            width: cw;
+            height: ch;
+            item: t;
+            edge-right: Math.mod(i, cols) == cols - 1 || i == count - 1;
+            edge-bottom: i + cols >= count;
+        }
+    }
+    if section.kind == 3 && !square && !cards: Rectangle {
+        property <length> tile-w: Theme.narrow ? 140px : 168px;
+        property <length> tile-h: Theme.narrow ? 152px : 176px;
+        property <length> gap: Theme.narrow ? Theme.s2 : Theme.s4;
+        property <int> cols: max(1, Math.floor((self.width + gap) / (tile-w + gap)));
+        property <int> count: section.rows.length > 0 ? section.rows[0].items.length : 0;
+        min-width: tile-w;
+        min-height: Math.ceil(count / cols) * (tile-h + gap) - (count > 0 ? gap : 0px);
+        accessible-role: list;
+        accessible-label: section.title;
+        property <int> used: min(cols, count);
+        property <length> offset: section.center ? max(0px, (self.width - used * tile-w - (used - 1) * gap) / 2) : 0px;
+        if section.rows.length > 0: Rectangle {
+            for t[i] in section.rows[0].items: Tile {
+                x: offset + Math.mod(i, cols) * (tile-w + gap);
+                y: Math.floor(i / cols) * (tile-h + gap);
+                item: t;
+            }
+        }
+    }
+}
+
+// The content of a page or dialog: its sections, one under the other.
+export component Sections inherits VerticalLayout {
+    in property <[SectionVm]> sections;
+    spacing: Theme.s4;
+    for s in sections: SectionView { section: s; }
+}
+
+
+// A dashboard block: a card with a title bar (a drag handle while editing), items
+// at the right of the bar, its body and, while editing, a resize grip.
+component BlockView inherits Rectangle {
+    in property <BlockVm> block;
+    in property <bool> edit;
+    in property <length> colw;
+    in property <length> rowh;
+    in property <length> gap;
+    // Dragging and resizing follow the pointer here; the controller only hears
+    // the cell it would land on.
+    property <length> dx;
+    property <length> dy;
+    property <length> dw;
+    property <length> dh;
+    property <bool> moving;
+    property <bool> sizing;
+    property <bool> focused;
+    property <int> tx: block.x;
+    property <int> ty: block.y;
+    property <int> tw: block.w;
+    property <int> th: block.h;
+    x: block.x * (colw + gap) + dx;
+    y: block.y * (rowh + gap) + dy;
+    width: max(40px, block.w * colw + (block.w - 1) * gap + dw);
+    height: max(40px, block.h * rowh + (block.h - 1) * gap + dh);
+    z: moving || sizing ? 10 : 0;
+    // Its bounds, for tests (the title bar names it for screen readers).
+    accessible-role: none;
+    accessible-id: "boardblock|";
+    card := Card {
+        drop-shadow-blur: moving || sizing ? 12px : 2px;
+        border-color: focused ? Theme.focus : Theme.border;
+        border-width: focused ? 2px : 1px;
+    }
+    VerticalLayout {
+        padding: Theme.s2;
+        spacing: Theme.s1;
+        bar := Rectangle {
+            height: 30px;
+            border-radius: Theme.radius-small;
+            background: edit ? (moving ? Theme.hover : Theme.surface-alt) : transparent;
+            if edit: handle := FocusScope {
+                // Keys only: a click is the touch area's (a scope that took the
+                // press for focus would swallow the first click; revision 32).
+                focus-on-click: false;
+                accessible-role: button;
+                accessible-label: "Block " + block.title;
+                accessible-id: "block|" + block.id;
+                accessible-action-default => { self.focus(); }
+                changed has-focus => { focused = self.has-focus; }
+                key-pressed(e) => {
+                    let k = e.text == Key.UpArrow ? "up" : e.text == Key.DownArrow ? "down" : e.text == Key.LeftArrow ? "left" : e.text == Key.RightArrow ? "right" : "";
+                    if k == "" { return reject; }
+                    Act.act(block.id, E.key, (e.modifiers.shift ? "shift+" : "") + k);
+                    accept
+                }
+                bar-ta := TouchArea {
+                    mouse-cursor: moving ? grabbing : grab;
+                    pointer-event(e) => {
+                        if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                            handle.focus();
+                        }
+                        if e.kind == PointerEventKind.up && moving {
+                            moving = false;
+                            dx = 0; dy = 0;
+                            Act.act(block.id, E.key, "drop:" + tx + "," + ty);
+                        }
+                    }
+                    moved => {
+                        if !self.pressed { return; }
+                        moving = true;
+                        // The block follows the pointer, so the pointer's offset
+                        // from the press point is the step since the last move.
+                        dx += self.mouse-x - self.pressed-x;
+                        dy += self.mouse-y - self.pressed-y;
+                        let nx = Math.max(0, Math.min(12 - block.w, Math.round((block.x * (colw + gap) + dx) / (colw + gap))));
+                        let ny = Math.max(0, Math.round((block.y * (rowh + gap) + dy) / (rowh + gap)));
+                        if nx != tx || ny != ty {
+                            tx = nx; ty = ny;
+                            Act.act(block.id, E.key, "drag:" + tx + "," + ty);
+                        }
+                    }
+                }
+            }
+            HorizontalLayout {
+                padding-left: Theme.s2;
+                padding-right: Theme.s1;
+                spacing: Theme.s1;
+                if block.title-link && !edit: Text {
+                    text: block.title;
+                    font-weight: 600;
+                    color: title-ta.has-hover ? Theme.accent : Theme.text;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                    accessible-role: button;
+                    accessible-label: block.title;
+                    accessible-id: "button|" + block.id;
+                    accessible-action-default => { Act.act(block.id, E.click, ""); }
+                    title-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { Act.act(block.id, E.click, ""); }
+                    }
+                }
+                if !(block.title-link && !edit): Text {
+                    text: block.title;
+                    font-weight: 600;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                    accessible-role: text;
+                    accessible-label: block.title;
+                }
+                for it in block.head: ItemView { item: it; }
+            }
+        }
+        Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+            body := ScrollView {
+                width: 100%;
+                height: 100%;
+                content-width: self.visible-width;
+                content-height: max(inner.preferred-height, self.visible-height);
+                inner := Sections {
+                    width: body.visible-width - Theme.s2;
+                    alignment: start;
+                    spacing: Theme.s2;
+                    sections: block.sections;
+                }
+            }
+        }
+    }
+    if edit: grip := Rectangle {
+        x: parent.width - 18px;
+        y: parent.height - 18px;
+        width: 16px;
+        height: 16px;
+        accessible-role: button;
+        accessible-label: "Resize " + block.title;
+        Path {
+            commands: "M 14 4 L 4 14 M 14 8 L 8 14 M 14 12 L 12 14";
+            stroke: Theme.text-secondary;
+            stroke-width: 1.5px;
+            accessible-role: none;
+        }
+        TouchArea {
+            mouse-cursor: nwse-resize;
+            pointer-event(e) => {
+                if e.kind == PointerEventKind.up && sizing {
+                    sizing = false;
+                    dw = 0; dh = 0;
+                    Act.act(block.id, E.key, "resized:" + tw + "," + th);
+                }
+            }
+            moved => {
+                if !self.pressed { return; }
+                sizing = true;
+                // The grip moves with the growing block (see the title bar).
+                dw += self.mouse-x - self.pressed-x;
+                dh += self.mouse-y - self.pressed-y;
+                let nw = Math.max(1, Math.round((block.w * colw + (block.w - 1) * gap + dw + gap) / (colw + gap)));
+                let nh = Math.max(1, Math.round((block.h * rowh + (block.h - 1) * gap + dh + gap) / (rowh + gap)));
+                if nw != tw || nh != th {
+                    tw = nw; th = nh;
+                    Act.act(block.id, E.key, "resize:" + tw + "," + th);
+                }
+            }
+        }
+    }
+}
+
+// The dashboard grid: twelve columns, rows of 96 px, 8 px gaps.
+export component BoardView inherits Rectangle {
+    in property <[BlockVm]> blocks;
+    in property <bool> edit;
+    property <length> gap: Theme.s2;
+    property <length> colw: max(1px, (self.width - gap * 11) / 12);
+    property <length> rowh: 96px;
+    in property <int> rows;
+    min-height: rows * (rowh + gap);
+    for b in blocks: Rectangle {
+        // Where a dragged or resized block would land.
+        if b.has-ghost: Rectangle {
+            x: b.gx * (colw + gap);
+            y: b.gy * (rowh + gap);
+            width: b.gw * colw + (b.gw - 1) * gap;
+            height: b.gh * rowh + (b.gh - 1) * gap;
+            border-radius: Theme.radius;
+            border-width: 2px;
+            border-color: Theme.accent;
+            background: Theme.accent-soft.with-alpha(0.4);
+        }
+    }
+    for b in blocks: BlockView {
+        block: b;
+        edit: edit;
+        colw: colw;
+        rowh: rowh;
+        gap: gap;
+    }
+}
+
+// A page: title with toolbar, an optional side list, the sections.
+export component PageView inherits Rectangle {
+    in property <PageVm> page;
+    VerticalLayout {
+        padding-left: Theme.page-margin;
+        padding-right: Theme.page-margin;
+        padding-top: Theme.s4;
+        padding-bottom: Theme.s4;
+        spacing: Theme.s4;
+        if (page.title != "" || page.toolbar.length > 0) && !Theme.narrow: HorizontalLayout {
+            spacing: Theme.s2;
+            if page.title != "": Text {
+                text: page.title;
+                font-size: Theme.title-size;
+                font-weight: 600;
+                color: Theme.text;
+                vertical-alignment: center;
+                accessible-role: text;
+                accessible-label: page.title;
+                accessible-id: "heading|page-title";
+            }
+            Rectangle { horizontal-stretch: 1; }
+            for it in page.toolbar: ItemView { item: it; }
+        }
+        // A narrow window: the toolbar goes under the title, its fields shrink.
+        if (page.title != "" || page.toolbar.length > 0) && Theme.narrow: VerticalLayout {
+            spacing: Theme.s2;
+            if page.title != "": Text {
+                text: page.title;
+                font-size: Theme.title-size;
+                font-weight: 600;
+                color: Theme.text;
+                wrap: word-wrap;
+                accessible-role: text;
+                accessible-label: page.title;
+                accessible-id: "heading|page-title";
+            }
+            if page.toolbar.length > 0: HorizontalLayout {
+                spacing: Theme.s2;
+                for it in page.toolbar: ItemView { item: it; }
+                Rectangle { horizontal-stretch: 1; }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.s4;
+            vertical-stretch: 1;
+            if page.side.length > 0: Card {
+                width: page.side-width > 0 ? page.side-width : 200px;
+                ScrollView {
+                    sl := VerticalLayout {
+                        padding: Theme.s2;
+                        spacing: Theme.s1;
+                        alignment: start;
+                        for s in page.side: SectionView { section: s; }
+                    }
+                }
+            }
+            if page.scroll: Rectangle {
+              horizontal-stretch: 1;
+              sv := ScrollView {
+                width: parent.width - pbar.width;
+                x: 0;
+                vertical-scrollbar-policy: always-off;
+                content-width: sv.visible-width;
+                content-height: max(body.preferred-height, sv.visible-height);
+                body := VerticalLayout {
+                    width: sv.visible-width - Theme.s2;
+                    height: max(self.preferred-height, sv.visible-height);
+                    alignment: start;
+                    spacing: Theme.s4;
+                    Sections {
+                        sections: page.sections;
+                    }
+                    if page.board.length > 0: BoardView {
+                        blocks: page.board;
+                        edit: page.board-edit;
+                        rows: page.board-rows;
+                    }
+                }
+              }
+              pbar := VBar {
+                x: parent.width - self.width;
+                height: parent.height;
+                offset <=> sv.content-y;
+                total: sv.content-height;
+                view: sv.visible-height;
+                aid: "page";
+              }
+            }
+            if !page.scroll: Sections {
+                horizontal-stretch: 1;
+                sections: page.sections;
+            }
+        }
+    }
+}
+
+// A dialog over the page: a scrim and a centred card.
+export component DialogView inherits Rectangle {
+    in property <DialogVm> dialog;
+    background: Theme.scrim;
+    // Clicks on the scrim do nothing (the dialog is modal).
+    TouchArea { }
+    FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Escape { Act.act(dialog.id, E.click, ""); return accept; }
+            reject
+        }
+    }
+    // Anchored by its top edge: the dialog does not move as its content grows or
+    // shrinks (app-desktop.md revision 10b).
+    property <length> top: max(16px, min(72px, root.height * 0.06));
+    panel := Card {
+        // Its own width, or wider when its content needs it (a split editor's
+        // lines), never wider than the window.
+        property <length> own: min(dialog.width > 0 ? dialog.width : 480px, root.width - 32px);
+        width: min(max(own, inner.min-width + 2 * Theme.s5 + Theme.scroll-width + Theme.s1), root.width - 32px);
+        // Its left edge stays where its own width puts it; extra width grows to
+        // the right (moving left only to stay in the window), so the dialog does
+        // not move as its content changes.
+        x: max(16px, min((root.width - own) / 2, root.width - self.width - 16px));
+        y: top;
+        // The dialog's group (what is behind it is out of reach; the title above
+        // names it).
+        accessible-role: groupbox;
+        accessible-id: "dialog|" + dialog.id;
+        height: min(dl.preferred-height, root.height - top - 24px);
+        drop-shadow-blur: 24px;
+        drop-shadow-offset-y: 8px;
+        dl := VerticalLayout {
+            padding: Theme.s5;
+            // A compact dialog (the password prompt) keeps as much room below its
+            // body as its title row takes above, so the body sits in the middle.
+            padding-bottom: dialog.compact ? Theme.s5 + head.preferred-height + Theme.s4 : Theme.s5;
+            spacing: Theme.s4;
+            head := HorizontalLayout {
+                spacing: Theme.s2;
+                if dialog.icon != "": Icon {
+                    name: dialog.icon;
+                    width: 20px;
+                    height: 20px;
+                    y: (parent.height - self.height) / 2;
+                    tint: Theme.text-secondary;
+                }
+                Text {
+                    text: dialog.title;
+                    font-size: Theme.subtitle-size + 2px;
+                    font-weight: 600;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    wrap: word-wrap;
+                    accessible-role: text;
+                    accessible-label: dialog.title;
+                    accessible-id: "heading|" + dialog.id;
+                }
+                IconButton {
+                    icon: "close";
+                    name: dialog.close-label;
+                    tip: dialog.close-label;
+                    aid: "button|" + dialog.id;
+                    size: Theme.touch ? 48px : 28px;
+                    clicked => { Act.act(dialog.id, E.click, ""); }
+                }
+            }
+            HorizontalLayout {
+                // A compact dialog's body is centred: as much room on its left as
+                // the scroll bar's gutter takes on its right.
+                padding-left: dialog.compact ? Theme.scroll-width + Theme.s1 : 0px;
+                Rectangle {
+                    preferred-height: inner.preferred-height;
+                    dsv := ScrollView {
+                        width: parent.width - dbar.width;
+                        x: 0;
+                        vertical-scrollbar-policy: always-off;
+                        content-width: dsv.visible-width;
+                        content-height: inner.preferred-height;
+                        inner := Sections {
+                            width: dsv.visible-width - Theme.s1;
+                            sections: dialog.sections;
+                        }
+                    }
+                    dbar := VBar {
+                        x: parent.width - self.width;
+                        height: parent.height;
+                        offset <=> dsv.content-y;
+                        total: dsv.content-height;
+                        view: dsv.visible-height;
+                        aid: dialog.id;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A bottom sheet over a dimmed screen (the phone's keypad and calendar,
+// mobile-capture.md revision 7): it slides up from the bottom; a tap on the dimmed
+// part closes it. `sheet` 2: a full-screen viewer that any tap closes.
+export component SheetView inherits Rectangle {
+    in property <DialogVm> dialog;
+    // Room the system keeps at the bottom (the home indicator).
+    in property <length> safe-bottom;
+    property <bool> full: dialog.sheet == 2;
+    property <bool> shown: false;
+    init => { shown = true; }
+    background: full ? #000000e6 : Theme.scrim;
+    // The dimmed part: a button that closes the sheet.
+    scrim := Rectangle {
+        accessible-role: button;
+        accessible-label: dialog.close-label;
+        accessible-id: "scrim|" + dialog.id;
+        accessible-action-default => { Act.act(dialog.id, E.click, ""); }
+        TouchArea { clicked => { Act.act(dialog.id, E.click, ""); } }
+    }
+    if full: Rectangle {
+        accessible-role: groupbox;
+        accessible-id: "dialog|" + dialog.id;
+        VerticalLayout {
+            padding: Theme.s4;
+            alignment: center;
+            Sections { sections: dialog.sections; }
+        }
+        // Any tap closes the viewer.
+        TouchArea { clicked => { Act.act(dialog.id, E.click, ""); } }
+    }
+    if !full: panel := Rectangle {
+        width: min(root.width, 480px);
+        x: (root.width - self.width) / 2;
+        height: min(sl.preferred-height, root.height - 48px);
+        y: shown ? root.height - self.height : root.height;
+        animate y { duration: Theme.normal; easing: ease-out; }
+        background: Theme.surface;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: Theme.shadow;
+        accessible-role: groupbox;
+        accessible-id: "dialog|" + dialog.id;
+        // Taps on the sheet stay on the sheet.
+        TouchArea { }
+        sl := VerticalLayout {
+            padding-left: Theme.s4;
+            padding-right: Theme.s4;
+            padding-top: Theme.s2;
+            padding-bottom: Theme.s4 + safe-bottom;
+            spacing: Theme.s3;
+            // The grab handle.
+            Rectangle {
+                height: 4px;
+                Rectangle {
+                    width: 36px;
+                    height: 4px;
+                    border-radius: 2px;
+                    background: Theme.border;
+                }
+            }
+            if dialog.title != "": Text {
+                text: dialog.title;
+                font-size: Theme.subtitle-size;
+                font-weight: 600;
+                color: Theme.text;
+                accessible-role: text;
+                accessible-label: dialog.title;
+                accessible-id: "heading|" + dialog.id;
+            }
+            Sections {
+                spacing: Theme.s3;
+                sections: dialog.sections;
+            }
+        }
+    }
+}

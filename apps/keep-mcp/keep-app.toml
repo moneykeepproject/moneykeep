@@ -1,0 +1,10 @@
+# keep-launcher component description (mcp-server.md revision 3). keep-launcher's
+# own behaviour is specified elsewhere; this file only describes the component.
+id = "keep-mcp"
+name = "keep-mcp"
+description = "Lets AI assistants use MoneyKeep books you allow"
+optional = true
+default_install = false
+requires = ["moneykeep"]
+binary = "keep-mcp"
+install_note = "An AI assistant on this computer can use this book through the keep-mcp program. What the assistant reads is sent to the AI service you use, under that service's terms. Its changes are recorded in History and can be undone."

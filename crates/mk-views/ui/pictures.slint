@@ -1,0 +1,37 @@
+// The 24 preset book pictures (app-desktop.md revision 40): 256 × 256 PNGs with a
+// transparent background, drawn over the book's colour. `assets/` is copied next to
+// this file in the build folder (build.rs). Names match the controller's
+// `preset-<id>` icons.
+
+export global BookPictures {
+    public pure function get(name: string) -> image {
+        if name == "preset-farmer" { return @image-url("assets/book-pictures/farmer.png"); }
+        if name == "preset-pastor" { return @image-url("assets/book-pictures/pastor.png"); }
+        if name == "preset-teacher" { return @image-url("assets/book-pictures/teacher.png"); }
+        if name == "preset-nurse" { return @image-url("assets/book-pictures/nurse.png"); }
+        if name == "preset-doctor" { return @image-url("assets/book-pictures/doctor.png"); }
+        if name == "preset-carpenter" { return @image-url("assets/book-pictures/carpenter.png"); }
+        if name == "preset-builder" { return @image-url("assets/book-pictures/builder.png"); }
+        if name == "preset-mechanic" { return @image-url("assets/book-pictures/mechanic.png"); }
+        if name == "preset-shopkeeper" { return @image-url("assets/book-pictures/shopkeeper.png"); }
+        if name == "preset-baker" { return @image-url("assets/book-pictures/baker.png"); }
+        if name == "preset-cook" { return @image-url("assets/book-pictures/cook.png"); }
+        if name == "preset-bookkeeper" { return @image-url("assets/book-pictures/bookkeeper.png"); }
+        if name == "preset-lawyer" { return @image-url("assets/book-pictures/lawyer.png"); }
+        if name == "preset-artist" { return @image-url("assets/book-pictures/artist.png"); }
+        if name == "preset-musician" { return @image-url("assets/book-pictures/musician.png"); }
+        if name == "preset-gardener" { return @image-url("assets/book-pictures/gardener.png"); }
+        if name == "preset-fisherman" { return @image-url("assets/book-pictures/fisherman.png"); }
+        if name == "preset-seamstress" { return @image-url("assets/book-pictures/seamstress.png"); }
+        if name == "preset-scholar" { return @image-url("assets/book-pictures/scholar.png"); }
+        if name == "preset-student" { return @image-url("assets/book-pictures/student.png"); }
+        if name == "preset-family" { return @image-url("assets/book-pictures/family.png"); }
+        if name == "preset-couple" { return @image-url("assets/book-pictures/couple.png"); }
+        if name == "preset-grandparents" { return @image-url("assets/book-pictures/grandparents.png"); }
+        if name == "preset-piggy-bank" { return @image-url("assets/book-pictures/piggy-bank.png"); }
+        @image-url("")
+    }
+    public pure function has(name: string) -> bool {
+        name != "" && get(name).width > 0
+    }
+}

@@ -1,0 +1,1783 @@
+// Item components (texts, buttons, fields, drop-downs, tiles, charts …).
+// build.rs also writes a "leaf" copy of this file (components renamed with a
+// Leaf suffix, over CellVm) so a table cell can hold a small group of items
+// without a component containing itself.
+
+import { Button, LineEdit, TextEdit, CheckBox, Switch, Slider, ProgressIndicator, Spinner, AboutSlint } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { BookPictures } from "pictures.slint";
+import { ItemVm, CellVm, ChartVm, K, E, Act, Keys } from "vm.slint";
+import { Card, Icon, IconButton, IconTab, Chip, ChipTab, ChipCheck, LinkText, Overlay, PrimaryButton, TouchButton, CheckMark, TouchSwitch, KeyButton, DayButton, AmountCard, FieldButton, ThumbView } from "widgets.slint";
+// @leaf-import
+
+// Hover text: show the description of whatever the pointer rests on.
+component TipArea inherits TouchArea {
+    in property <string> tip;
+    in property <length> anchor-x;
+    in property <length> anchor-y;
+    changed has-hover => {
+        if tip == "" { return; }
+        if self.has-hover {
+            Act.tip = tip;
+            Act.tip-x = anchor-x;
+            Act.tip-y = anchor-y;
+        } else if Act.tip == tip {
+            Act.tip = "";
+        }
+    }
+    // The text changed under the pointer (a toggle's tip follows its state).
+    changed tip => { if self.has-hover && tip != "" { Act.tip = tip; } }
+}
+
+// A single-line field whose text the controller owns.
+component Field inherits VerticalLayout {
+    in property <ItemVm> item;
+    property <string> model-text: item.value;
+    property <int> model-focus: item.focus;
+    property <int> model-select: item.select;
+    spacing: 2px;
+    le := LineEdit {
+        // In a narrow window fields may give up width.
+        min-width: Theme.narrow ? min(item.width > 0 ? item.width : 160px, 72px) : item.width > 0 ? item.width : 160px;
+        preferred-width: item.width > 0 ? item.width : 160px;
+        horizontal-stretch: item.grow ? 1 : Theme.narrow ? 1 : 0;
+        // Taller on a touch screen (mobile-capture.md revision 7).
+        min-height: max(Theme.field-height, 32px);
+        text: item.value;
+        placeholder-text: item.placeholder;
+        enabled: item.enabled;
+        input-type: item.kind == K.password ? InputType.password : InputType.text;
+        horizontal-alignment: item.align == 2 ? right : item.align == 1 ? center : left;
+        accessible-label: item.label;
+        accessible-id: (item.kind == K.password ? "password|" : "input|") + item.id;
+        accessible-description: item.desc;
+        edited(t) => { Act.act(item.id, E.edit, t); }
+        accepted(t) => { Act.act(item.id, E.enter, t); }
+        changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+        key-pressed(e) => {
+            if e.text == Key.UpArrow || e.text == Key.DownArrow || e.text == Key.Escape || e.text == Key.PageUp || e.text == Key.PageDown {
+                if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+            }
+            reject
+        }
+    }
+    // A date field's format guide: the rest of the pattern, greyed, right after
+    // the typed text while the field has focus (`text` carries it for fields).
+    measure := Text {
+        text: le.text;
+        visible: false;
+        height: 0px;
+        accessible-role: none;
+    }
+    if item.text != "" && le.has-focus && item.kind == K.field: Rectangle {
+        height: 0px;
+        guide := Text {
+            x: 11px + measure.preferred-width;
+            y: -le.height / 2 - 2px - self.preferred-height / 2;
+            visible: self.x + self.preferred-width < le.width - 8px;
+            text: item.text;
+            color: Theme.text-secondary;
+            accessible-role: text;
+            accessible-id: "guide|" + item.id;
+            accessible-label: self.visible ? item.text : "";
+        }
+    }
+    if item.error != "": Text {
+        text: item.error;
+        color: Theme.error;
+        font-size: Theme.caption-size;
+        wrap: word-wrap;
+        // Room for every wrapped line (layouts do not ask a text its height for
+        // a width): about 6.5 px a character at the caption size.
+        min-height: Math.ceil(item.error.character-count * 6.5px / max(1px, self.width)) * (Theme.caption-size * 1.4);
+        accessible-role: text;
+        accessible-label: item.error;
+    }
+    changed model-text => { if le.text != model-text { le.text = model-text; } }
+    // A field that already has focus but is now another item (the password
+    // prompt's field turning into the recovery key field) tells the controller.
+    changed model-focus => {
+        if model-focus > 0 {
+            if le.has-focus { Act.act(item.id, E.focus, ""); } else { le.focus(); }
+        }
+    }
+    changed model-select => { if model-select > 0 { le.select-all(); } }
+    // Focus asked for when the field is created takes effect once it is in the
+    // window (a focus call during creation is lost).
+    property <bool> pending: false;
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => {
+            pending = false;
+            le.focus();
+            if model-select > 0 { le.select-all(); }
+        }
+    }
+    init => {
+        if model-focus > 0 { pending = true; }
+    }
+}
+
+// A text field on a touch screen (the phone window; mobile-capture.md revision
+// 8). Fluent's LineEdit takes its colours from Fluent's palette, not from the
+// theme; this one draws with the theme: a fill of its own (`Theme.field`), the
+// main text colour whether or not it has focus, the muted colour for the
+// placeholder, and focus adds the accent border only.
+// Revision 18: the outline is always visible — 1.5 px in the field border colour
+// (3:1 or more against the card, WCAG 1.4.11), 2 px in the accent with focus — and
+// the field is at least 44 px tall (52 px: Theme.field-height on the phone).
+component TouchField inherits VerticalLayout {
+    in property <ItemVm> item;
+    property <string> model-text: item.value;
+    property <int> model-focus: item.focus;
+    property <int> model-select: item.select;
+    property <length> pad: 12px;
+    spacing: 2px;
+    box := Rectangle {
+        min-width: item.width > 0 ? item.width : 160px;
+        preferred-width: item.width > 0 ? item.width : 160px;
+        horizontal-stretch: item.grow ? 1 : 0;
+        min-height: Theme.field-height;
+        border-radius: Theme.radius-small;
+        background: item.enabled ? Theme.field : Theme.surface-alt;
+        border-width: ti.has-focus ? 2px : 1.5px;
+        border-color: ti.has-focus ? Theme.accent : Theme.field-border;
+        opacity: item.enabled ? 1 : 0.6;
+        // A tap anywhere in the box, its padding too, puts the cursor in it.
+        TouchArea {
+            enabled: item.enabled;
+            clicked => { ti.focus(); }
+        }
+        view := Rectangle {
+            x: pad;
+            width: max(1px, parent.width - 2 * pad);
+            height: parent.height;
+            clip: true;
+            Text {
+                width: 100%;
+                height: 100%;
+                vertical-alignment: center;
+                horizontal-alignment: ti.horizontal-alignment;
+                text: ti.text == "" && ti.preedit-text == "" ? item.placeholder : "";
+                color: Theme.text-secondary;
+                font-size: Theme.body-size;
+                accessible-role: none;
+            }
+            ti := TextInput {
+                // Long text scrolls so the cursor stays in view.
+                property <length> shift: 0px;
+                x: min(0px, max(view.width - self.width, self.shift));
+                width: max(view.width, self.preferred-width + 2px);
+                height: 100%;
+                vertical-alignment: center;
+                single-line: true;
+                text: item.value;
+                color: Theme.text;
+                font-size: Theme.body-size;
+                selection-background-color: Theme.accent-soft;
+                selection-foreground-color: Theme.text;
+                enabled: item.enabled;
+                input-type: item.kind == K.password ? InputType.password : InputType.text;
+                horizontal-alignment: item.align == 2 ? right : item.align == 1 ? center : left;
+                accessible-label: item.label;
+                accessible-id: (item.kind == K.password ? "password|" : "input|") + item.id;
+                accessible-description: item.desc;
+                accessible-placeholder-text: item.placeholder;
+                cursor-position-changed(p) => {
+                    if p.x + self.shift < 0px {
+                        self.shift = -p.x;
+                    } else if p.x + self.shift > view.width - 2px {
+                        self.shift = view.width - 2px - p.x;
+                    }
+                }
+                edited => { Act.act(item.id, E.edit, self.text); }
+                accepted => { Act.act(item.id, E.enter, self.text); }
+                changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+                key-pressed(e) => {
+                    if e.text == Key.UpArrow || e.text == Key.DownArrow || e.text == Key.Escape || e.text == Key.PageUp || e.text == Key.PageDown {
+                        if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+                    }
+                    reject
+                }
+            }
+        }
+    }
+    if item.error != "": Text {
+        text: item.error;
+        color: Theme.error;
+        font-size: Theme.caption-size;
+        wrap: word-wrap;
+        min-height: Math.ceil(item.error.character-count * 7px / max(1px, self.width)) * (Theme.caption-size * 1.4);
+        accessible-role: text;
+        accessible-label: item.error;
+    }
+    changed model-text => { if ti.text != model-text { ti.text = model-text; } }
+    changed model-focus => {
+        if model-focus > 0 {
+            if ti.has-focus { Act.act(item.id, E.focus, ""); } else { ti.focus(); }
+        }
+    }
+    changed model-select => { if model-select > 0 { ti.select-all(); } }
+    property <bool> pending: false;
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => {
+            pending = false;
+            ti.focus();
+            if model-select > 0 { ti.select-all(); }
+        }
+    }
+    init => {
+        if model-focus > 0 { pending = true; }
+    }
+}
+
+// A multi-line field on a touch screen, drawn like `TouchField` (revision 8).
+component TouchMultiField inherits VerticalLayout {
+    in property <ItemVm> item;
+    property <string> model-text: item.value;
+    property <int> model-focus: item.focus;
+    property <length> pad: 12px;
+    spacing: 2px;
+    Rectangle {
+        min-width: item.width > 0 ? item.width : 240px;
+        min-height: max(96px, ti.preferred-height + 2 * pad);
+        horizontal-stretch: item.grow ? 1 : 0;
+        border-radius: Theme.radius-small;
+        background: item.enabled ? Theme.field : Theme.surface-alt;
+        border-width: ti.has-focus ? 2px : 1.5px;
+        border-color: ti.has-focus ? Theme.accent : Theme.field-border;
+        opacity: item.enabled ? 1 : 0.6;
+        clip: true;
+        TouchArea {
+            enabled: item.enabled;
+            clicked => { ti.focus(); }
+        }
+        Text {
+            x: pad;
+            y: pad;
+            width: parent.width - 2 * pad;
+            text: ti.text == "" && ti.preedit-text == "" ? item.placeholder : "";
+            color: Theme.text-secondary;
+            font-size: Theme.body-size;
+            wrap: word-wrap;
+            accessible-role: none;
+        }
+        ti := TextInput {
+            x: pad;
+            y: pad;
+            width: parent.width - 2 * pad;
+            height: parent.height - 2 * pad;
+            single-line: false;
+            wrap: word-wrap;
+            text: item.value;
+            color: Theme.text;
+            font-size: Theme.body-size;
+            selection-background-color: Theme.accent-soft;
+            selection-foreground-color: Theme.text;
+            enabled: item.enabled;
+            accessible-role: text-input;
+            accessible-label: item.label != "" ? item.label : item.text;
+            accessible-id: "multiline|" + item.id;
+            accessible-description: item.desc;
+            accessible-placeholder-text: item.placeholder;
+            edited => { Act.act(item.id, E.edit, self.text); }
+            changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+            key-pressed(e) => {
+                // `number` 1: Enter saves instead of starting a new line.
+                if item.number == 1 && e.text == Key.Return && !e.modifiers.shift {
+                    Act.act(item.id, E.enter, self.text);
+                    return accept;
+                }
+                if e.text == Key.Escape || (e.modifiers.control && e.text == Key.Return) {
+                    if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+                }
+                reject
+            }
+        }
+    }
+    if item.error != "": Text {
+        text: item.error;
+        color: Theme.error;
+        font-size: Theme.caption-size;
+        wrap: word-wrap;
+        min-height: Math.ceil(item.error.character-count * 7px / max(1px, self.width)) * (Theme.caption-size * 1.4);
+    }
+    changed model-text => { if ti.text != model-text { ti.text = model-text; } }
+    changed model-focus => { if model-focus > 0 { ti.focus(); } }
+    property <bool> pending: false;
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => {
+            pending = false;
+            ti.focus();
+        }
+    }
+    init => { if model-focus > 0 { pending = true; } }
+}
+
+// A field with suggestions below it (categories, payees, accounts).
+component SuggestField inherits VerticalLayout {
+    in property <ItemVm> item;
+    property <string> model-text: item.value;
+    property <int> model-focus: item.focus;
+    property <int> model-select: item.select;
+    property <bool> showing: le.has-focus && item.options.length > 0;
+    spacing: 2px;
+    function show() {
+        if showing {
+            Overlay.show(item.id, item.options, false, 2, 0, le.absolute-position.x, le.absolute-position.y + le.height + 2px, le.width, "suggestion");
+            Overlay.prefix = item.text;
+        } else if Overlay.id == item.id {
+            Overlay.close();
+        }
+    }
+    le := LineEdit {
+        min-width: item.width > 0 ? item.width : 180px;
+        horizontal-stretch: item.grow ? 1 : 0;
+        text: item.value;
+        placeholder-text: item.placeholder;
+        enabled: item.enabled;
+        accessible-label: item.label != "" ? item.label : item.text;
+        accessible-id: "input|" + item.id;
+        accessible-description: item.desc;
+        edited(t) => { Act.act(item.id, E.edit, t); }
+        accepted(t) => {
+            if Overlay.open && Overlay.id == item.id && Overlay.current >= 0 {
+                Act.act(item.id, E.select, Overlay.current);
+                Overlay.close();
+            }
+            Act.act(item.id, E.enter, t);
+        }
+        changed has-focus => {
+            Act.act(item.id, self.has-focus ? E.focus : E.blur, "");
+            show();
+        }
+        key-pressed(e) => {
+            if Overlay.open && Overlay.id == item.id {
+                if e.text == Key.DownArrow { Overlay.current = Math.min(Overlay.current + 1, item.options.length - 1); return accept; }
+                if e.text == Key.UpArrow { Overlay.current = Math.max(Overlay.current - 1, 0); return accept; }
+                if e.text == Key.Escape { Overlay.close(); return accept; }
+                if e.text == Key.Tab && !e.modifiers.shift && Overlay.current >= 0 {
+                    Act.act(item.id, E.select, Overlay.current);
+                    Overlay.close();
+                    return reject;
+                }
+            }
+            if e.text == Key.UpArrow || e.text == Key.DownArrow || e.text == Key.Escape || e.text == Key.PageUp || e.text == Key.PageDown {
+                if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+            }
+            reject
+        }
+    }
+    if item.error != "": Text {
+        text: item.error;
+        color: Theme.error;
+        font-size: Theme.caption-size;
+        wrap: word-wrap;
+        // Room for every wrapped line (layouts do not ask a text its height for
+        // a width): about 6.5 px a character at the caption size.
+        min-height: Math.ceil(item.error.character-count * 6.5px / max(1px, self.width)) * (Theme.caption-size * 1.4);
+    }
+    changed model-text => {
+        if le.text != model-text { le.text = model-text; }
+        // New text, new suggestions (highlight back on the first).
+        show();
+    }
+    changed model-focus => { if model-focus > 0 { le.focus(); } }
+    changed model-select => { if model-select > 0 { le.select-all(); } }
+    changed showing => { show(); }
+    property <int> option-count: item.options.length;
+    changed option-count => { show(); }
+    // Focus asked for when the field is created takes effect once it is in the
+    // window (a focus call during creation is lost).
+    property <bool> pending: false;
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => {
+            pending = false;
+            le.focus();
+            if model-select > 0 { le.select-all(); }
+        }
+    }
+    init => {
+        if model-focus > 0 { pending = true; }
+    }
+}
+
+// A multi-line field.
+component MultiField inherits VerticalLayout {
+    in property <ItemVm> item;
+    property <string> model-text: item.value;
+    property <int> model-focus: item.focus;
+    spacing: 2px;
+    // `number` 1: a single paragraph where Enter saves (Settings → Book,
+    // Description) instead of starting a new line.
+    FocusScope {
+        min-width: item.width > 0 ? item.width : 240px;
+        min-height: 72px;
+        horizontal-stretch: item.grow ? 1 : 0;
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        capture-key-pressed(e) => {
+            if item.number == 1 && e.text == Key.Return && !e.modifiers.shift {
+                Act.act(item.id, E.enter, te.text);
+                return accept;
+            }
+            // Esc (closes the dialog) and the app's shortcuts reach the controller.
+            if e.text == Key.Escape || (e.modifiers.control && e.text == Key.Return) {
+                if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+            }
+            reject
+        }
+    te := TextEdit {
+        width: 100%;
+        height: 100%;
+        text: item.value;
+        placeholder-text: item.placeholder;
+        enabled: item.enabled;
+        wrap: word-wrap;
+        accessible-label: item.label != "" ? item.label : item.text;
+        accessible-id: "multiline|" + item.id;
+        accessible-description: item.desc;
+        edited(t) => { Act.act(item.id, E.edit, t); }
+        changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+    }
+    }
+    if item.error != "": Text {
+        text: item.error;
+        color: Theme.error;
+        font-size: Theme.caption-size;
+        wrap: word-wrap;
+        // Room for every wrapped line (layouts do not ask a text its height for
+        // a width): about 6.5 px a character at the caption size.
+        min-height: Math.ceil(item.error.character-count * 6.5px / max(1px, self.width)) * (Theme.caption-size * 1.4);
+    }
+    changed model-text => { if te.text != model-text { te.text = model-text; } }
+    changed model-focus => { if model-focus > 0 { te.focus(); } }
+    property <bool> pending: false;
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => {
+            pending = false;
+            te.focus();
+        }
+    }
+    init => { if model-focus > 0 { pending = true; } }
+}
+
+// A drop-down list: a button showing the choice; the list opens in the overlay.
+component DropDown inherits Rectangle {
+    in property <ItemVm> item;
+    min-width: item.width > 0 ? item.width : item.grow ? 96px : 160px;
+    preferred-width: max(item.width > 0 ? item.width : 160px, lay.preferred-width);
+    horizontal-stretch: item.grow ? 1 : 0;
+    min-height: Theme.field-height;
+    border-radius: Theme.radius-small;
+    border-width: 1px;
+    border-color: fs.has-focus ? Theme.focus : Theme.border;
+    background: !item.enabled ? Theme.surface-alt : ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : Theme.surface;
+    opacity: item.enabled ? 1 : 0.6;
+    accessible-role: combobox;
+    accessible-label: item.label != "" ? item.label : item.text;
+    accessible-value: item.value;
+    accessible-id: "combo|" + item.id;
+    accessible-description: item.desc;
+    accessible-enabled: item.enabled;
+    accessible-expandable: true;
+    accessible-expanded: Overlay.open && Overlay.id == item.id;
+    accessible-action-default => { open(); }
+    function open() {
+        if !item.enabled { return; }
+        Overlay.show(item.id, item.options, false, 1, item.index, root.absolute-position.x, root.absolute-position.y + root.height + 2px, root.width, "option");
+        Overlay.search-label = item.placeholder;
+        // Entries named "<text> <entry>" from index `minimum` on (font lists).
+        if item.text != "" && item.label != "" {
+            Overlay.prefix = item.text;
+            Overlay.prefix-from = item.minimum;
+        }
+    }
+    // A searched list: the options change while it is open.
+    property <int> option-count: item.options.length;
+    changed option-count => {
+        if Overlay.open && Overlay.id == item.id {
+            Overlay.options = item.options;
+        }
+    }
+    lay := HorizontalLayout {
+        padding-left: Theme.s3;
+        padding-right: Theme.s2;
+        spacing: Theme.s2;
+        Text {
+            text: item.value;
+            vertical-alignment: center;
+            color: Theme.text;
+            font-size: Theme.body-size;
+            horizontal-stretch: 1;
+            accessible-role: none;
+        }
+        Icon { name: "chevron-small"; width: 14px; height: 14px; y: (parent.height - self.height) / 2; tint: Theme.text-secondary; }
+    }
+    ta := TouchArea {
+        enabled: item.enabled;
+        mouse-cursor: pointer;
+        clicked => { fs.focus(); open(); }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        enabled: item.enabled;
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return || (e.text == Key.DownArrow && e.modifiers.alt) { open(); return accept; }
+            if e.text == Key.DownArrow && item.index < item.options.length - 1 { Act.act(item.id, E.select, item.index + 1); return accept; }
+            if e.text == Key.UpArrow && item.index > 0 { Act.act(item.id, E.select, item.index - 1); return accept; }
+            reject
+        }
+    }
+}
+
+// A button opening a menu.
+component MenuButton inherits Rectangle {
+    in property <ItemVm> item;
+    // `width`: a larger tap target (the phone's 44 px menu button), square.
+    min-width: max(lay.min-width, item.width);
+    preferred-width: max(lay.preferred-width, item.width);
+    min-height: max(Theme.control-height, item.width);
+    border-radius: Theme.radius-small;
+    background: item.checked ? Theme.accent-soft : ta.pressed ? Theme.pressed : ta.has-hover || (Overlay.open && Overlay.id == item.id) ? Theme.hover : transparent;
+    accessible-role: button;
+    accessible-label: item.label != "" ? item.label : item.text;
+    accessible-id: "menu|" + item.id;
+    accessible-description: item.desc;
+    accessible-enabled: item.enabled;
+    // Selected while one of its screens is open (the Features menu).
+    accessible-item-selectable: true;
+    accessible-item-selected: item.checked;
+    accessible-expandable: true;
+    accessible-expanded: Overlay.open && Overlay.id == item.id;
+    accessible-action-default => { toggle(); }
+    function toggle() {
+        if Overlay.open && Overlay.id == item.id {
+            Overlay.close();
+        } else {
+            Overlay.show(item.id, item.options, item.value == "check", 0, item.index, root.absolute-position.x, root.absolute-position.y + root.height + 2px, 200px, item.value == "check" ? "menucheck" : "menuitem");
+        }
+    }
+    lay := HorizontalLayout {
+        padding-left: item.text != "" ? Theme.s3 : Theme.s1;
+        padding-right: item.text != "" ? Theme.s2 : Theme.s1;
+        spacing: Theme.s1;
+        if item.icon != "": Icon { name: item.icon; y: (parent.height - self.height) / 2; }
+        if item.text != "": Text {
+            text: item.text;
+            vertical-alignment: center;
+            color: item.checked ? Theme.accent : Theme.text;
+            font-size: Theme.body-size;
+            accessible-role: none;
+        }
+        // An icon-only menu (⋯) needs no chevron.
+        if item.text != "": Icon { name: "chevron-small"; width: 12px; height: 12px; y: (parent.height - self.height) / 2; tint: Theme.text-secondary; }
+    }
+    ta := TouchArea {
+        enabled: item.enabled;
+        mouse-cursor: pointer;
+        clicked => { toggle(); }
+    }
+}
+
+// A radio button.
+component Radio inherits Rectangle {
+    in property <ItemVm> item;
+    min-height: 28px;
+    min-width: lay.min-width;
+    preferred-width: lay.preferred-width;
+    accessible-role: radio-button;
+    accessible-label: item.label != "" ? item.label : item.text;
+    accessible-id: "radio|" + item.id;
+    accessible-checkable: true;
+    accessible-checked: item.checked;
+    accessible-enabled: item.enabled;
+    accessible-description: item.desc;
+    accessible-action-default => { if item.enabled { Act.act(item.id, E.click, ""); } }
+    opacity: item.enabled ? 1 : 0.5;
+    lay := HorizontalLayout {
+        spacing: Theme.s2;
+        Rectangle {
+            width: 18px;
+            height: 18px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 9px;
+            border-width: item.checked ? 5px : 1px;
+            border-color: item.checked ? Theme.accent : fs.has-focus ? Theme.focus : Theme.text-secondary;
+            background: Theme.surface;
+            animate border-width { duration: Theme.quick; }
+        }
+        Text {
+            text: item.text;
+            vertical-alignment: center;
+            color: Theme.text;
+            font-size: Theme.body-size;
+            accessible-role: none;
+        }
+    }
+    TouchArea {
+        enabled: item.enabled;
+        clicked => { fs.focus(); Act.act(item.id, E.click, ""); }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        enabled: item.enabled;
+        key-pressed(e) => {
+            if e.text == " " { Act.act(item.id, E.click, ""); return accept; }
+            reject
+        }
+    }
+}
+
+// A status light (phone capture): a coloured dot.
+component Light inherits Rectangle {
+    in property <ItemVm> item;
+    // Colour, shape and mark all carry the state (WCAG 1.4.1): green filled,
+    // yellow with "!", red with "×", grey hollow.
+    property <color> fill: item.value == "green" ? (Theme.dark ? #4cc37a : #1e7d46)
+        : item.value == "yellow" ? (Theme.dark ? #f2c13d : #b88600)
+        : item.value == "red" ? (Theme.dark ? #f06a5f : #b3261e) : transparent;
+    width: item.width > 0 ? item.width : 18px;
+    height: self.width;
+    border-radius: self.width / 2;
+    background: fill;
+    border-width: item.value == "green" || item.value == "yellow" || item.value == "red" ? (ta.has-hover ? 2px : 0px) : max(2px, self.width * 0.08);
+    border-color: item.value == "green" || item.value == "yellow" || item.value == "red" ? Theme.text : Theme.text-secondary;
+    accessible-role: none;
+    // A light that opens something is a button; one that only shows (the phone's
+    // top bar) an image.
+    if item.id != "": Rectangle {
+        accessible-role: button;
+        accessible-label: item.label;
+        accessible-id: "light|" + item.id;
+        accessible-description: item.desc;
+        accessible-value: item.value;
+        accessible-action-default => { Act.act(item.id, E.click, ""); }
+    }
+    if item.id == "": Rectangle {
+        accessible-role: image;
+        accessible-label: item.label;
+        accessible-id: "light|";
+        accessible-description: item.desc;
+        accessible-value: item.value;
+    }
+    if item.value == "yellow" || item.value == "red": Text {
+        text: item.value == "yellow" ? "!" : "×";
+        color: item.value == "yellow" ? #000000 : (Theme.dark ? #000000 : #ffffff);
+        font-size: root.width * 0.62;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        accessible-role: none;
+    }
+    ta := TouchArea {
+        mouse-cursor: item.id != "" ? pointer : default;
+        clicked => { if item.id != "" { Act.act(item.id, E.click, ""); } }
+        changed has-hover => {
+            if item.desc == "" { return; }
+            if self.has-hover {
+                Act.tip = item.desc;
+                Act.tip-x = root.absolute-position.x;
+                Act.tip-y = root.absolute-position.y + root.height + 4px;
+            } else if Act.tip == item.desc {
+                Act.tip = "";
+            }
+        }
+    }
+}
+
+// A chart: paths in a 1000 × 1000 box stretched over the item, labels and legend.
+// The controller sizes the drawing (`chart.height`) to what the legend leaves and
+// wraps the legend into lines for the width (dashboards.md revision 4), so the
+// legend's lines have a fixed height here. Its pieces (bars and points) open what
+// they stand for (revision 5): the pointer becomes a hand over them, the piece
+// lights up and a tooltip names it; Tab reaches the chart, the arrow keys move
+// between the pieces and then the legend, Enter or Space opens.
+export component ChartView inherits Rectangle {
+    in property <ChartVm> chart;
+    in property <string> name;
+    in property <string> id;
+    // The piece under the pointer, and the one the keyboard is on (the pieces
+    // first, then the legend's entries).
+    property <int> hover: -1;
+    property <int> cur: -1;
+    property <int> count: chart.pieces.length + (chart.open-more ? chart.legend-count : 0);
+    property <bool> keys: fs.has-focus;
+    min-width: lay.min-width;
+    min-height: lay.min-height;
+    preferred-width: lay.preferred-width;
+    preferred-height: lay.preferred-height;
+    function hit(i: int) -> string {
+        return i < chart.pieces.length ? "p:" + i : "l:" + (i - chart.pieces.length);
+    }
+    fs := FocusScope {
+        // Keys only: a click is the pieces' (a scope that took the press for
+        // focus would swallow the first click; app-desktop revision 32).
+        focus-on-click: false;
+        enabled: count > 0;
+        key-pressed(e) => {
+            if e.text == Key.RightArrow || e.text == Key.DownArrow {
+                cur = Math.min(count - 1, cur + 1);
+                return accept;
+            }
+            if e.text == Key.LeftArrow || e.text == Key.UpArrow {
+                cur = Math.max(0, cur - 1);
+                return accept;
+            }
+            if (e.text == Key.Return || e.text == " ") && cur >= 0 {
+                Act.act(id, E.click, hit(cur));
+                return accept;
+            }
+            reject
+        }
+        changed has-focus => {
+            if self.has-focus && cur < 0 { cur = 0; }
+            if self.has-focus && cur >= count { cur = count - 1; }
+            Act.act(id, self.has-focus ? E.focus : E.blur, "");
+        }
+    }
+    // The keyboard's focus ring.
+    if keys: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: parent.width + 4px;
+        height: parent.height + 4px;
+        border-radius: Theme.radius-small;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+    lay := VerticalLayout {
+        spacing: Theme.s2;
+        // The drawing is the image a screen reader announces, with the chart's
+        // description.
+        box := Rectangle {
+            height: chart.height > 0 ? chart.height : 180px;
+            min-width: 160px;
+            accessible-role: image;
+            accessible-label: name;
+            // The empty chart area opens the chart's report.
+            if chart.open-more: TouchArea {
+                width: 100%;
+                height: 100%;
+                mouse-cursor: pointer;
+                clicked => { Act.act(id, E.click, ""); }
+            }
+            for p in chart.paths: Path {
+                width: 100%;
+                height: 100%;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 1000;
+                viewbox-height: 1000;
+                // Stretch the 0–1000 box to the chart (the controller laid it out
+                // for this aspect).
+                fit: fill;
+                commands: p.commands;
+                fill: p.series-fill ? Theme.series(p.series) : p.fill;
+                stroke: p.series-stroke ? Theme.series(p.series) : p.stroke;
+                stroke-width: p.stroke-width * 1px;
+                accessible-role: none;
+            }
+            for l in chart.labels: Text {
+                // Kept inside the chart (the controller's text widths are estimates).
+                x: max(0px, min(box.width - self.preferred-width, l.align == 2 ? box.width * l.x / 1000 - self.preferred-width : l.align == 1 ? box.width * l.x / 1000 - self.preferred-width / 2 : box.width * l.x / 1000));
+                y: box.height * l.y / 1000 - self.preferred-height / 2;
+                text: l.text;
+                color: Theme.text-secondary;
+                font-size: Theme.caption-size;
+                accessible-role: text;
+                accessible-label: l.text;
+                accessible-id: "chartlabel|";
+            }
+            // The axis ticks for screen readers (not part of the layout, so it
+            // takes no room from the legend).
+            if chart.note != "": Text {
+                x: 0;
+                y: 0;
+                width: 1px;
+                height: 1px;
+                text: "";
+                accessible-role: text;
+                accessible-label: chart.note;
+            }
+            // The piece under the pointer or the keyboard: a bar a little lighter,
+            // a point ringed.
+            for p[i] in chart.pieces: Rectangle {
+                visible: hover == i || (keys && cur == i);
+                x: box.width * p.mx0 / 1000;
+                y: box.height * p.my0 / 1000;
+                width: box.width * (p.mx1 - p.mx0) / 1000;
+                height: box.height * (p.my1 - p.my0) / 1000;
+                background: p.ring ? transparent : #ffffff59;
+                border-radius: p.ring ? self.width / 2 : 0px;
+                border-width: p.ring || (keys && cur == i) ? 2px : 0px;
+                border-color: p.ring ? Theme.text : Theme.focus;
+            }
+            for p[i] in chart.pieces: Rectangle {
+                x: box.width * p.hx0 / 1000;
+                y: box.height * p.hy0 / 1000;
+                width: box.width * (p.hx1 - p.hx0) / 1000;
+                height: box.height * (p.hy1 - p.hy0) / 1000;
+                accessible-role: button;
+                accessible-label: p.name;
+                accessible-id: "chartpiece|" + id + "/piece:" + i;
+                accessible-action-default => { Act.act(id, E.click, "p:" + i); }
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    mouse-cursor: pointer;
+                    clicked => { Act.act(id, E.click, "p:" + i); }
+                    changed has-hover => {
+                        if self.has-hover {
+                            hover = i;
+                            Act.tip = p.name;
+                            Act.tip-x = self.absolute-position.x + self.mouse-x + 12px;
+                            Act.tip-y = self.absolute-position.y + self.mouse-y + 16px;
+                        } else {
+                            if hover == i { hover = -1; }
+                            if Act.tip == p.name { Act.tip = ""; }
+                        }
+                    }
+                }
+            }
+        }
+        if chart.legend.length > 0: VerticalLayout {
+            spacing: 4px;
+            for line in chart.legend: HorizontalLayout {
+                height: 16px;
+                spacing: Theme.s3;
+                alignment: start;
+                for entry in line.entries: Rectangle {
+                    min-width: 0px;
+                    preferred-width: entry-lay.preferred-width;
+                    max-width: entry-lay.preferred-width;
+                    border-radius: 2px;
+                    border-width: keys && cur == chart.pieces.length + entry.index ? 2px : 0px;
+                    border-color: Theme.focus;
+                    entry-lay := HorizontalLayout {
+                        spacing: Theme.s1;
+                        Rectangle {
+                            width: 10px;
+                            height: 10px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 2px;
+                            background: entry.series != -1 ? Theme.series(entry.series) : entry.color;
+                        }
+                        Text {
+                            min-width: 0px;
+                            text: entry.text;
+                            color: Theme.text-secondary;
+                            font-size: Theme.caption-size;
+                            vertical-alignment: center;
+                            // An estimate too small for the font still never spills.
+                            overflow: elide;
+                            accessible-role: none;
+                        }
+                    }
+                    // A plain legend entry (a shortened one shows its full text as
+                    // a tooltip) …
+                    if !chart.open-more: Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        accessible-role: text;
+                        accessible-label: "Legend: " + (entry.tip != "" ? entry.tip : entry.text);
+                        accessible-id: "legend|";
+                        TipArea {
+                            width: 100%;
+                            height: 100%;
+                            tip: entry.tip;
+                            anchor-x: parent.absolute-position.x;
+                            anchor-y: parent.absolute-position.y + parent.height + 4px;
+                        }
+                    }
+                    // … or one that opens its series.
+                    if chart.open-more: Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        accessible-role: button;
+                        accessible-label: entry.name;
+                        accessible-id: "link|" + id + "/legend:" + entry.index;
+                        accessible-action-default => { Act.act(id, E.click, "l:" + entry.index); }
+                        TouchArea {
+                            width: 100%;
+                            height: 100%;
+                            mouse-cursor: pointer;
+                            clicked => { Act.act(id, E.click, "l:" + entry.index); }
+                            changed has-hover => {
+                                if entry.tip == "" { return; }
+                                if self.has-hover {
+                                    Act.tip = entry.tip;
+                                    Act.tip-x = self.absolute-position.x;
+                                    Act.tip-y = self.absolute-position.y + self.height + 4px;
+                                } else if Act.tip == entry.tip {
+                                    Act.tip = "";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A book or feature tile: a coloured square with a letter, symbol or picture, the
+// name centred under it.
+// A square action tile (the phone's home screen, mobile-capture.md revision 5): a
+// rounded square in its colour, a large icon above a short label, darker while
+// pressed, a count badge at the top right.
+export component ActionTile inherits Rectangle {
+    in property <ItemVm> item;
+    border-radius: 16px;
+    background: ta.pressed ? item.color.darker(0.3) : ta.has-hover ? item.color.darker(0.1) : item.color;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: item.label != "" ? item.label : item.text;
+    accessible-id: "tile|" + item.id;
+    accessible-enabled: item.enabled;
+    accessible-action-default => { Act.act(item.id, E.click, ""); }
+    Icon {
+        name: item.icon;
+        x: (parent.width - self.width) / 2;
+        y: parent.height * 0.4 - self.height / 2;
+        width: parent.width * 0.42;
+        height: self.width;
+        tint: #ffffff;
+    }
+    Text {
+        y: parent.height * 0.8 - self.height / 2;
+        width: parent.width;
+        text: item.text;
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        accessible-role: none;
+    }
+    if item.number > 0: Rectangle {
+        x: parent.width - 33px;
+        y: 7px;
+        width: max(26px, count.preferred-width + 10px);
+        height: 26px;
+        border-radius: 13px;
+        background: #c02626;
+        count := Text {
+            text: item.number;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { Act.act(item.id, E.click, ""); return accept; }
+            reject
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: -3px; y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: 19px;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { fs.focus(); Act.act(item.id, E.click, ""); }
+    }
+}
+
+export component Tile inherits Rectangle {
+    in property <ItemVm> item;
+    // Smaller in a narrow window (large text), so more fit on a line.
+    property <length> square: Theme.narrow ? 72px : 96px;
+    width: Theme.narrow ? 140px : 168px;
+    height: Theme.narrow ? 152px : 176px;
+    accessible-role: button;
+    accessible-label: item.label != "" ? item.label : item.text;
+    accessible-description: item.desc;
+    accessible-id: "tile|" + item.id;
+    accessible-enabled: item.enabled;
+    accessible-action-default => { Act.act(item.id, E.click, ""); }
+    card := Card {
+        hoverable: true;
+        hovered: ta.has-hover || fs.has-focus;
+        pressed: ta.pressed;
+        opacity: item.checked ? 0.55 : 1;
+        VerticalLayout {
+            padding: Theme.s3;
+            spacing: Theme.s2;
+            alignment: start;
+            Rectangle {
+                height: square + 8px;
+                Rectangle {
+                    width: square;
+                    height: square;
+                    border-radius: Theme.radius;
+                    background: item.color;
+                    border-width: item.kind == K.tile && item.value == "+" ? 2px : 0px;
+                    border-color: Theme.border;
+                    clip: true;
+                    if item.has-picture: Image {
+                        width: 100%;
+                        height: 100%;
+                        source: item.picture;
+                        image-fit: cover;
+                        // Part of the tile (its name is the tile's own name).
+                        accessible-role: image;
+                        accessible-label: "Book picture";
+                    }
+                    if !item.has-picture && item.icon != "": Icon {
+                        name: item.icon;
+                        width: square * 0.58;
+                        height: square * 0.58;
+                        tint: item.value == "+" ? Theme.accent : #ffffff;
+                    }
+                    if !item.has-picture && item.icon == "": Text {
+                        text: item.value;
+                        color: item.value == "+" ? Theme.accent : #ffffff;
+                        font-size: square * 0.42;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        accessible-role: text;
+                    }
+                }
+                // A count (the phone's Outbox tile).
+                if item.number > 0: Rectangle {
+                    x: parent.width / 2 + 30px;
+                    y: 0px;
+                    width: max(26px, badge-text.preferred-width + 12px);
+                    height: 26px;
+                    border-radius: 13px;
+                    background: Theme.dark ? #f06a5f : #c02626;
+                    badge-text := Text {
+                        text: item.number;
+                        color: #ffffff;
+                        font-size: Theme.caption-size;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        accessible-role: none;
+                    }
+                }
+                if item.strike: Rectangle {
+                    x: parent.width / 2 + 30px;
+                    y: 70px;
+                    width: 26px;
+                    height: 26px;
+                    border-radius: 13px;
+                    background: Theme.surface;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    accessible-role: text;
+                    accessible-label: "Password protected";
+                    accessible-id: "label|";
+                    Icon { name: "lock"; width: 16px; height: 16px; }
+                }
+            }
+            name-text := Text {
+                text: item.text;
+                horizontal-alignment: center;
+                vertical-alignment: top;
+                color: Theme.text;
+                font-size: Theme.body-size;
+                font-weight: 600;
+                wrap: word-wrap;
+                overflow: elide;
+                height: 40px;
+                accessible-role: text;
+            }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { fs.focus(); Act.act(item.id, E.click, ""); }
+        pointer-event(e) => {
+            if e.button == PointerEventButton.right && e.kind == PointerEventKind.up && item.options.length > 0 {
+                Overlay.show(item.id, item.options, false, 3, -1, root.absolute-position.x + self.mouse-x, root.absolute-position.y + self.mouse-y, 200px, "menuitem");
+            }
+        }
+        changed has-hover => {
+            if item.desc == "" { return; }
+            if self.has-hover {
+                Act.tip = item.desc;
+                Act.tip-x = root.absolute-position.x;
+                Act.tip-y = root.absolute-position.y + root.height + 4px;
+            } else if Act.tip == item.desc {
+                Act.tip = "";
+            }
+        }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { Act.act(item.id, E.click, ""); return accept; }
+            if e.text == Key.LeftArrow || e.text == Key.RightArrow || e.text == Key.UpArrow || e.text == Key.DownArrow {
+                if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+            }
+            reject
+        }
+        changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+    }
+    property <int> model-focus: item.focus;
+    changed model-focus => { if model-focus > 0 { fs.focus(); } }
+    Rectangle {
+        border-radius: Theme.radius;
+        border-width: fs.has-focus ? 2px : 0px;
+        border-color: Theme.focus;
+    }
+}
+
+// A square picture choice (Settings → Book → People and work, revision 40): a
+// preset picture on the book's colour; `checked` chosen.
+component PictureChoice inherits Rectangle {
+    in property <ItemVm> item;
+    property <length> side: item.width > 0 ? item.width : 64px;
+    width: side;
+    height: side;
+    border-radius: 8px;
+    background: item.color;
+    clip: true;
+    accessible-role: button;
+    accessible-label: item.label;
+    accessible-description: item.desc;
+    accessible-id: "picture|" + item.id;
+    accessible-checkable: true;
+    accessible-checked: item.checked;
+    accessible-action-default => { Act.act(item.id, E.click, ""); }
+    Image {
+        width: 100%;
+        height: 100%;
+        source: BookPictures.get(item.icon);
+        image-fit: contain;
+        accessible-role: none;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { Act.act(item.id, E.click, ""); }
+        changed has-hover => {
+            if item.desc == "" { return; }
+            if self.has-hover {
+                Act.tip = item.desc;
+                Act.tip-x = root.absolute-position.x;
+                Act.tip-y = root.absolute-position.y + root.height + 4px;
+            } else if Act.tip == item.desc {
+                Act.tip = "";
+            }
+        }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return { Act.act(item.id, E.click, ""); return accept; }
+            reject
+        }
+    }
+    Rectangle {
+        border-radius: 8px;
+        border-width: item.checked ? 3px : fs.has-focus || ta.has-hover ? 2px : 0px;
+        border-color: item.checked || fs.has-focus ? Theme.focus : Theme.border;
+    }
+}
+
+// The Picture editor's crop frame (revision 40): the photo moves under a square
+// frame; a drag sends "dx,dy" (frame pixels) when the button is released.
+component CropFrame inherits Rectangle {
+    in property <ItemVm> item;
+    property <length> side: item.width > 0 ? item.width : 256px;
+    // Frame pixels per photo pixel.
+    property <float> scale: side / 1px / max(1, item.maximum);
+    property <length> dx;
+    property <length> dy;
+    width: side;
+    height: side;
+    clip: true;
+    background: Theme.surface-alt;
+    accessible-role: image;
+    accessible-label: item.label;
+    accessible-description: item.desc;
+    accessible-id: "crop|" + item.id;
+    Image {
+        x: -item.number * scale * 1px + dx;
+        y: -item.minimum * scale * 1px + dy;
+        width: item.picture.width * scale * 1px;
+        height: item.picture.height * scale * 1px;
+        source: item.picture;
+        image-fit: fill;
+        accessible-role: none;
+    }
+    TouchArea {
+        mouse-cursor: move;
+        moved => {
+            if self.pressed {
+                dx = self.mouse-x - self.pressed-x;
+                dy = self.mouse-y - self.pressed-y;
+            }
+        }
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.up && (dx != 0px || dy != 0px) {
+                Act.act(item.id, E.edit, Math.round(dx / 1px) + "," + Math.round(dy / 1px));
+                dx = 0px;
+                dy = 0px;
+            }
+        }
+    }
+    Rectangle {
+        border-width: 1px;
+        border-color: Theme.border;
+    }
+}
+
+// A picture on the book's colour that the Keep and Remove brushes paint on while
+// `checked` (revision 40): a stroke sends "x,y;x,y;…" in 0–255 when released.
+component PaintCanvas inherits Rectangle {
+    in property <ItemVm> item;
+    property <length> side: item.width > 0 ? item.width : 256px;
+    property <string> points;
+    width: side;
+    height: side;
+    border-radius: side < 100px ? 10px : 12px;
+    background: item.color;
+    clip: true;
+    accessible-role: image;
+    accessible-label: item.label;
+    accessible-description: item.desc;
+    accessible-id: "canvas|" + item.id;
+    pure function at(x: length, y: length) -> string {
+        Math.round(max(0, min(255, x / side * 256))) + "," + Math.round(max(0, min(255, y / side * 256)))
+    }
+    Image {
+        width: 100%;
+        height: 100%;
+        source: item.picture;
+        image-fit: contain;
+        accessible-role: none;
+    }
+    if item.checked: TouchArea {
+        mouse-cursor: crosshair;
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                points = at(self.mouse-x, self.mouse-y);
+            }
+            if e.kind == PointerEventKind.up && points != "" {
+                Act.act(item.id, E.edit, points + ";" + at(self.mouse-x, self.mouse-y));
+                points = "";
+            }
+        }
+        moved => {
+            if self.pressed && points != "" {
+                points = points + ";" + at(self.mouse-x, self.mouse-y);
+            }
+        }
+        // The brush under the pointer.
+        if self.has-hover: Rectangle {
+            property <length> r: item.number / 256 * side;
+            x: parent.mouse-x - r;
+            y: parent.mouse-y - r;
+            width: 2 * r;
+            height: 2 * r;
+            border-radius: r;
+            border-width: 1px;
+            border-color: #ffffff;
+            Rectangle {
+                border-radius: parent.border-radius;
+                border-width: 1px;
+                border-color: #000000;
+                x: 1px;
+                y: 1px;
+                width: parent.width - 2px;
+                height: parent.height - 2px;
+            }
+        }
+    }
+}
+
+// One item.
+export component ItemView inherits VerticalLayout {
+    in property <ItemVm> item;
+    // In a horizontal bar (the top bar): a separator is a short upright line.
+    in property <bool> in-row;
+    property <string> name: item.label != "" ? item.label : item.text;
+    horizontal-stretch: item.grow || item.kind == K.spacer ? 1 : 0;
+    alignment: center;
+
+    // Texts.
+    if item.kind == K.text || item.kind == K.title || item.kind == K.subtitle || item.kind == K.caption || item.kind == K.amount: Rectangle {
+        min-width: item.kind == K.amount ? max(t.min-width, item.width) : item.width > 0 ? item.width : t.min-width;
+        property <bool> is-status: item.icon == "status:n" || item.icon == "status:c" || item.icon == "status:r";
+        preferred-width: max(t.preferred-width + (item.icon != "" && !is-status ? 22px : 0px), item.width);
+        min-height: t.min-height;
+        preferred-height: t.preferred-height;
+        accessible-role: text;
+        // "~": part of the row's own name (a list entry), not read twice.
+        accessible-label: item.id == "~" ? "" : name;
+        accessible-id: item.id == "~" ? "" : (item.kind == K.title || item.kind == K.subtitle ? "heading|" : "label|") + item.id;
+        accessible-description: item.desc;
+        // A text named for its row: the words drawn stay readable as its value.
+        accessible-value: item.label != "" && item.label != item.text ? item.text : "";
+        // A register status mark (app-desktop.md: empty, half-filled or filled
+        // circle); the row's text names it.
+        if is-status: Rectangle {
+            width: 12px;
+            height: 12px;
+            x: item.align == 2 ? parent.width - 12px : item.align == 1 ? (parent.width - 12px) / 2 : 0px;
+            border-radius: 6px;
+            border-width: 1.5px;
+            border-color: Theme.accent;
+            background: item.icon == "status:r" ? Theme.accent : transparent;
+            clip: true;
+            if item.icon == "status:c": Rectangle {
+                x: 0px;
+                width: parent.width / 2;
+                height: parent.height;
+                background: Theme.accent;
+            }
+        }
+        if item.icon != "" && !is-status: Rectangle {
+            x: parent.width - 18px;
+            width: 18px;
+            accessible-role: image;
+            accessible-label: item.icon == "paperclip" ? "Has receipts" : item.icon;
+            Icon { name: item.icon; width: 16px; height: 16px; tint: Theme.text-secondary; }
+        }
+        t := Text {
+            width: parent.width - (item.icon != "" && !is-status ? 22px : 0px);
+            text: item.text;
+            visible: !is-status;
+            color: item.kind == K.caption && item.tone == 0 ? Theme.text-secondary : Theme.tone(item.tone);
+            font-size: item.kind == K.title ? Theme.title-size : item.kind == K.subtitle ? Theme.subtitle-size : item.kind == K.caption ? Theme.caption-size : Theme.body-size;
+            font-weight: item.kind == K.title || item.kind == K.subtitle || item.bold ? 600 : 400;
+            font-family: item.kind == K.amount || item.mono ? Theme.number-font : "";
+            horizontal-alignment: item.align == 2 ? right : item.align == 1 ? center : left;
+            vertical-alignment: center;
+            wrap: item.kind == K.amount || item.mono ? no-wrap : word-wrap;
+            accessible-role: none;
+        }
+        if item.strike: Rectangle {
+            y: parent.height / 2;
+            height: 1px;
+            x: item.align == 2 ? parent.width - min(t.preferred-width, parent.width) : 0;
+            width: min(t.preferred-width, parent.width);
+            background: Theme.tone(item.tone);
+        }
+        if item.desc != "": TipArea {
+            tip: item.desc;
+            anchor-x: parent.absolute-position.x;
+            anchor-y: parent.absolute-position.y + parent.height + 4px;
+        }
+    }
+    // A chip on a colour of its own (subscriptions.md): `value` "chip-dark" or
+    // "chip-light" names the text colour chosen for 4.5:1 contrast.
+    if item.kind == K.badge: Rectangle {
+        property <bool> own: item.value == "chip-dark" || item.value == "chip-light";
+        min-width: bt.preferred-width + 2 * Theme.s2;
+        height: bt.preferred-height + 4px;
+        border-radius: self.height / 2;
+        background: own ? item.color : Theme.tone-bg(item.tone);
+        accessible-role: text;
+        accessible-label: name;
+        accessible-id: "label|" + item.id;
+        accessible-value: item.label != "" && item.label != item.text ? item.text : "";
+        bt := Text {
+            text: item.text;
+            color: item.value == "chip-dark" ? #000000 : item.value == "chip-light" ? #ffffff : Theme.tone(item.tone);
+            font-size: Theme.caption-size;
+            font-weight: 600;
+            accessible-role: none;
+        }
+    }
+    if item.kind == K.primary: PrimaryButton {
+        text: item.text;
+        enabled: item.enabled;
+        min-width: item.width > 0 ? item.width : 0px;
+        horizontal-stretch: item.grow ? 1 : 0;
+        has-icon: item.icon != "";
+        icon: item.icon != "" ? Icons.get(item.icon) : @image-url("");
+        name: name;
+        aid: "button|" + item.id;
+        tip: item.desc;
+        busy: item.value == "busy";
+        clicked => { if item.value != "busy" { Act.act(item.id, E.click, ""); } }
+    }
+    // The button sits in a hover area for its tooltip (the area sees the
+    // pointer over its child; clicks stay with the button).
+    // The phone draws its own plain buttons from the theme (revision 8).
+    if item.kind == K.button && Theme.touch: TouchButton {
+        text: item.text;
+        enabled: item.enabled;
+        min-width: item.width > 0 ? item.width : 0px;
+        min-height: max(Theme.control-height, item.number * 1px);
+        horizontal-stretch: item.grow ? 1 : 0;
+        has-icon: item.icon != "";
+        icon: item.icon != "" ? Icons.get(item.icon) : @image-url("");
+        name: name;
+        aid: "button|" + item.id;
+        tip: item.desc;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.button && !Theme.touch: TipArea {
+        min-width: max(item.width, fb.min-width);
+        preferred-width: max(item.width, fb.preferred-width);
+        // `number`: a taller button (dashboard shortcuts), in pixels.
+        // On a touch screen at least the 48 px tap target.
+        min-height: max(fb.min-height, item.number * 1px, Theme.touch ? Theme.control-height : 0px);
+        preferred-height: max(fb.preferred-height, item.number * 1px, Theme.touch ? Theme.control-height : 0px);
+        horizontal-stretch: item.grow ? 1 : 0;
+        tip: item.desc;
+        anchor-x: self.absolute-position.x;
+        anchor-y: self.absolute-position.y + self.height + 4px;
+        fb := Button {
+            width: 100%;
+            height: 100%;
+            text: item.text;
+            enabled: item.enabled;
+            checkable: false;
+            icon: item.icon != "" ? Icons.get(item.icon) : @image-url("");
+            colorize-icon: true;
+            accessible-label: name;
+            accessible-id: "button|" + item.id;
+            accessible-description: item.desc;
+            clicked => { Act.act(item.id, E.click, ""); }
+            // The message band waits while its button has the keyboard's focus
+            // (app-desktop.md revision 37).
+            changed has-focus => {
+                if item.report-focus { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+            }
+        }
+    }
+    if item.kind == K.link: LinkText {
+        text: item.text;
+        name: name;
+        enabled: item.enabled;
+        align: item.align;
+        aid: "link|" + item.id;
+        tip: item.desc;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    // The phone draws its own fields (mobile-capture.md revision 8); the desktop
+    // keeps Fluent's.
+    if (item.kind == K.field || item.kind == K.password) && !Theme.touch: Field { item: item; }
+    if (item.kind == K.field || item.kind == K.password) && Theme.touch: TouchField { item: item; }
+    if item.kind == K.suggest: SuggestField { item: item; }
+    if item.kind == K.multiline && !Theme.touch: MultiField { item: item; }
+    if item.kind == K.multiline && Theme.touch: TouchMultiField { item: item; }
+    if item.kind == K.check: CheckMark {
+        // The controller decides; the box shows its answer.
+        text: item.text;
+        checked: item.checked;
+        enabled: item.enabled;
+        name: name;
+        aid: "check|" + item.id;
+        tip: item.desc;
+        toggled => { Act.act(item.id, E.click, ""); }
+    }
+    // The phone draws its own switch in the accent colour (mobile-capture.md
+    // revision 13); the desktop keeps Fluent's.
+    if item.kind == K.switch && Theme.touch: TouchSwitch {
+        text: item.text;
+        checked: item.checked;
+        enabled: item.enabled;
+        name: name;
+        aid: "switch|" + item.id;
+        tip: item.desc;
+        toggled => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.switch && !Theme.touch: Switch {
+        property <bool> model-checked: item.checked;
+        text: item.text;
+        checked: item.checked;
+        enabled: item.enabled;
+        accessible-label: name;
+        accessible-id: "switch|" + item.id;
+        accessible-description: item.desc;
+        changed model-checked => { if self.checked != self.model-checked { self.checked = self.model-checked; } }
+        toggled => {
+            self.checked = !self.checked;
+            Act.act(item.id, E.click, "");
+        }
+    }
+    if item.kind == K.radio: Radio { item: item; }
+    if item.kind == K.combo: DropDown { item: item; }
+    if item.kind == K.menu: MenuButton { item: item; }
+    if item.kind == K.tab: ChipTab {
+        text: item.text;
+        name: name;
+        tip: item.desc;
+        selected: item.checked;
+        enabled: item.enabled;
+        icon: item.icon;
+        aid: "tab|" + item.id;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.toggle && item.color.alpha > 0: Rectangle {
+        width: 32px;
+        height: 32px;
+        border-radius: Theme.radius-small;
+        border-width: item.checked ? 2px : 0px;
+        border-color: Theme.text;
+        accessible-role: button;
+        accessible-label: name;
+        accessible-id: "toggle|" + item.id;
+        accessible-description: item.desc;
+        accessible-checkable: true;
+        accessible-checked: item.checked;
+        accessible-action-default => { Act.act(item.id, E.click, ""); }
+        Rectangle {
+            width: parent.width - 6px;
+            height: parent.height - 6px;
+            border-radius: Theme.radius-small - 1px;
+            background: item.color;
+            if item.checked: Icon { name: "check"; width: 16px; height: 16px; tint: #ffffff; }
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { Act.act(item.id, E.click, ""); }
+        }
+    }
+    if item.kind == K.toggle && item.color.alpha == 0: Chip {
+        text: item.text;
+        name: name;
+        tip: item.desc;
+        selected: item.checked;
+        enabled: item.enabled;
+        icon: item.icon;
+        aid: "toggle|" + item.id;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.menu-check: ChipCheck {
+        text: item.text;
+        name: name;
+        tip: item.desc;
+        selected: item.checked;
+        enabled: item.enabled;
+        icon: item.checked ? "check" : "";
+        aid: "menucheck|" + item.id;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.icon-button && item.value != "tab": IconButton {
+        icon: item.icon;
+        name: name;
+        tip: item.desc != "" ? item.desc : name;
+        enabled: item.enabled;
+        checked: item.checked;
+        checkable: item.checked || item.value == "toggle";
+        aid: "iconbutton|" + item.id;
+        focus-request: item.focus;
+        clicked => { Act.act(item.id, E.click, ""); }
+        // The message pop-up waits while its × has the keyboard's focus
+        // (app-desktop.md revisions 37 and 42).
+        focus-changed(f) => {
+            if item.report-focus { Act.act(item.id, f ? E.focus : E.blur, ""); }
+        }
+    }
+    // An icon that selects a view (the Settings gear): a tab with its state.
+    if item.kind == K.icon-button && item.value == "tab": IconTab {
+        icon: item.icon;
+        name: name;
+        tip: item.desc != "" ? item.desc : name;
+        enabled: item.enabled;
+        checked: item.checked;
+        checkable: true;
+        aid: "icontab|" + item.id;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.icon && item.label == "": Icon { name: item.icon; tint: Theme.tone(item.tone); }
+    // A named icon (a startup star) is an image for screen readers.
+    if item.kind == K.icon && item.label != "": Rectangle {
+        min-width: 16px;
+        min-height: 16px;
+        accessible-role: image;
+        accessible-label: item.label;
+        accessible-id: "image|" + item.id;
+        accessible-description: item.desc;
+        Icon { name: item.icon; tint: Theme.tone(item.tone); }
+        if item.desc != "": TipArea {
+            tip: item.desc;
+            anchor-x: parent.absolute-position.x;
+            anchor-y: parent.absolute-position.y + parent.height + 4px;
+        }
+    }
+    if item.kind == K.separator && item.color.alpha == 0 && in-row: Rectangle {
+        min-width: 1px + 2 * Theme.s1;
+        max-width: 1px + 2 * Theme.s1;
+        height: 20px;
+        Rectangle { width: 1px; background: Theme.border; }
+    }
+    if item.kind == K.separator && item.color.alpha == 0 && !in-row: Rectangle {
+        min-height: 1px;
+        max-height: 1px;
+        min-width: 1px;
+        background: Theme.border;
+    }
+    // A colour block (a swatch or an accent bar): `width` × `number` pixels.
+    if item.kind == K.separator && item.color.alpha > 0: Rectangle {
+        min-width: item.width;
+        max-width: item.width;
+        min-height: item.number * 1px;
+        max-height: item.number * 1px;
+        border-radius: min(3px, item.number * 0.5px);
+        background: item.color;
+    }
+    if item.kind == K.spacer: Rectangle {
+        min-width: item.width;
+        horizontal-stretch: 1;
+    }
+    if item.kind == K.progress && item.number >= 0: Rectangle {
+        min-width: item.width > 0 ? item.width : 96px;
+        horizontal-stretch: item.grow ? 1 : 0;
+        min-height: 20px;
+        accessible-role: progress-indicator;
+        accessible-label: name;
+        accessible-description: item.desc;
+        accessible-value: item.number + "%";
+        accessible-id: "progress|" + item.id;
+        Rectangle {
+            y: (parent.height - self.height) / 2;
+            height: 8px;
+            border-radius: 4px;
+            background: Theme.surface-alt;
+            border-width: 1px;
+            border-color: Theme.border;
+            Rectangle {
+                x: 0;
+                width: parent.width * min(100, max(0, item.number)) / 100;
+                border-radius: 4px;
+                // projects.md: a budget bar is amber at the warning percentage, red over budget.
+                background: (item.tone == 6 || item.tone == 4 || item.tone == 2) ? Theme.tone(item.tone) : Theme.accent;
+                animate width { duration: Theme.normal; }
+            }
+        }
+        if item.desc != "": TipArea {
+            tip: item.desc;
+            anchor-x: parent.absolute-position.x;
+            anchor-y: parent.absolute-position.y + parent.height + 4px;
+        }
+    }
+    if item.kind == K.progress && item.number < 0: Spinner {
+        indeterminate: true;
+        width: 24px;
+        height: 24px;
+        accessible-label: name;
+    }
+    if item.kind == K.image: Rectangle {
+        width: item.width > 0 ? item.width : 160px;
+        height: item.width > 0 ? item.width * (img.source.height > 0 ? img.source.height / max(1, img.source.width) : 1) : 160px;
+        accessible-role: image;
+        accessible-label: name;
+        accessible-id: "image|" + item.id;
+        accessible-description: item.desc;
+        accessible-action-default => { Act.act(item.id, E.click, ""); }
+        border-radius: Theme.radius-small;
+        clip: true;
+        img := Image {
+            width: 100%;
+            height: 100%;
+            source: item.picture;
+            image-fit: contain;
+            accessible-role: none;
+        }
+        TouchArea { clicked => { Act.act(item.id, E.click, ""); } }
+    }
+    if item.kind == K.chart: ChartView { chart: item.chart; name: name; id: item.id; }
+    if item.kind == K.tile: Tile { item: item; }
+    if item.kind == K.picture-choice: PictureChoice { item: item; }
+    if item.kind == K.crop-frame: CropFrame { item: item; }
+    if item.kind == K.paint-canvas: PaintCanvas { item: item; }
+    if item.kind == K.light: Light { item: item; }
+    // The phone's touch controls (mobile-capture.md revision 7).
+    if item.kind == K.key: KeyButton {
+        text: item.text;
+        icon: item.icon;
+        name: name;
+        aid: "key|" + item.id;
+        style: item.value == "op" ? 1 : item.value == "primary" ? 2 : item.value == "quiet" ? 3 : 0;
+        enabled: item.enabled;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.day: DayButton {
+        text: item.text;
+        name: name;
+        aid: "day|" + item.id;
+        selected: item.checked;
+        today: item.value == "today";
+        muted: item.tone == 1;
+        enabled: item.enabled;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.amount-card: AmountCard {
+        caption: item.placeholder;
+        symbol: item.value;
+        amount: item.text;
+        suffix: item.desc;
+        unset: item.tone == 1;
+        name: name;
+        aid: "button|" + item.id;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.field-button: FieldButton {
+        text: item.text;
+        icon: item.icon;
+        name: name;
+        aid: "button|" + item.id;
+        clicked => { Act.act(item.id, E.click, ""); }
+    }
+    if item.kind == K.thumb: ThumbView {
+        picture: item.picture;
+        has-picture: item.has-picture;
+        text: item.text;
+        name: name;
+        remove-name: item.desc;
+        aid: item.id;
+        open => { Act.act(item.id, E.click, ""); }
+        remove => { Act.act(item.id, E.click, "remove"); }
+    }
+    if item.kind == K.slider: HorizontalLayout {
+        property <int> model-focus: item.focus;
+        changed model-focus => { if model-focus > 0 { sl.focus(); } }
+        init => { if model-focus > 0 { sl.focus(); } }
+        spacing: Theme.s2;
+        sl := Slider {
+            min-width: item.width > 0 ? item.width : 200px;
+            minimum: item.minimum;
+            maximum: item.maximum;
+            value: item.number;
+            enabled: item.enabled;
+            accessible-label: name;
+            accessible-id: "slider|" + item.id;
+            changed(v) => { Act.act(item.id, E.edit, Math.round(v)); }
+        }
+    }
+    // @group
+    if item.kind == K.about-slint: AboutSlint {
+        accessible-role: image;
+        accessible-label: "About Slint";
+        accessible-id: "aboutslint|" + item.id;
+        min-height: 100px;
+    }
+}
+

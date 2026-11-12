@@ -1,0 +1,174 @@
+[workspace]
+resolver = "3"
+members = [
+    "apps/moneykeep-app",
+    "apps/moneykeep-capture",
+    "apps/keep-mcp",
+    "apps/moneykeep-cli",
+    "apps/moneykeep-server",
+    "crates/mk-capture-api",
+    "crates/mk-core",
+    "crates/mk-dpapi",
+    "crates/mk-store",
+    "crates/mk-ui",
+    "crates/mk-views",
+    "crates/mk-commands",
+    "crates/mk-connect",
+    "crates/mk-control",
+    "crates/mk-import",
+    "crates/mk-ledger",
+    "crates/mk-mcp",
+    "crates/mk-watch",
+    "xtask",
+]
+default-members = ["apps/moneykeep-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT OR Apache-2.0"
+authors = ["MoneyKeep Project contributors"]
+repository = "https://github.com/moneykeepproject/moneykeep"
+publish = false
+
+[workspace.dependencies]
+mk-core = { path = "crates/mk-core" }
+mk-dpapi = { path = "crates/mk-dpapi" }
+mk-store = { path = "crates/mk-store" }
+mk-commands = { path = "crates/mk-commands" }
+mk-import = { path = "crates/mk-import" }
+mk-ledger = { path = "crates/mk-ledger" }
+mk-mcp = { path = "crates/mk-mcp" }
+mk-watch = { path = "crates/mk-watch" }
+mk-ui = { path = "crates/mk-ui" }
+mk-views = { path = "crates/mk-views" }
+mk-connect = { path = "crates/mk-connect" }
+mk-control = { path = "crates/mk-control" }
+mk-capture-api = { path = "crates/mk-capture-api" }
+rust_decimal = { version = "1", features = ["serde-str", "maths"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+rusqlite = { version = "0.37", features = ["bundled", "serialize"] }
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+schemars = "1.2"
+# XML broker files (DTDs and entities are rejected by our reader).
+quick-xml = { version = "0.38.4", default-features = false }
+regex = { version = "1.12", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
+sha2 = "0.10"
+hmac = "0.12"
+# Definition files (.mkdef): TOML parsing only; the default recursion limit stays on.
+toml = { version = "1.1.8", default-features = false, features = ["std", "parse", "serde"] }
+base64 = "0.22"
+# Logo images (business-dimensions.md Part C): pure-Rust decoders with limits, and
+# zlib compression of the re-encoded raster.
+png = { version = "0.18", default-features = false }
+zune-jpeg = { version = "0.5", default-features = false, features = ["std"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+# The user interface (ui-slint.md): Slint under its Royalty-free License 2.0 (owner
+# decision 2026-11-02), Fluent style. The testing backend is preliminary and does
+# not follow semver, so every Slint crate is pinned to the same exact version.
+slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
+slint-build = "=1.18.1"
+i-slint-backend-testing = "=1.18.1"
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+directories = "6"
+proptest = "1.11"
+tempfile = "3"
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+zeroize = "1"
+# The phone app's files, served compressed (mobile-capture.md revision 18): Brotli
+# (BSD-3-Clause AND MIT) and gzip through flate2 (MIT OR Apache-2.0, its pure-Rust
+# miniz_oxide back end).
+brotli = { version = "8", default-features = false, features = ["std"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+getrandom = "0.3"
+unicode-normalization = "0.1"
+fs4 = { version = "0.13", features = ["sync"] }
+rpassword = "7"
+fontdb = "0.23"
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+indexing_slicing = "warn"
+float_arithmetic = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# Key derivation is deliberately expensive; optimise it even in debug builds so the
+# tests that open encrypted books with the production parameters stay quick.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+# Parsers with time bounds asserted in tests (input-safety.md R2): optimised in debug
+# builds too, so the bounds measure the code rather than the debug build.
+[profile.dev.package.regex-automata]
+opt-level = 3
+
+[profile.dev.package.regex-syntax]
+opt-level = 3
+
+[profile.dev.package.toml_parser]
+opt-level = 3
+
+[profile.dev.package.toml]
+opt-level = 3
+
+[profile.dev.package.winnow]
+opt-level = 3
+
+[profile.dev.package.unicode-normalization]
+opt-level = 3
+
+# Logo decoding and compression in tests (multi-megapixel rasters).
+[profile.dev.package.png]
+opt-level = 3
+
+[profile.dev.package.fdeflate]
+opt-level = 3
+
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+
+# The capture server's build script compresses the phone app (revision 18): Brotli at
+# quality 11 over the wasm program is slow unoptimised.
+[profile.dev.package.brotli]
+opt-level = 3
+
+[profile.release.package.brotli]
+opt-level = 3
+
+[profile.release.package.miniz_oxide]
+opt-level = 3
+
+# Receipt pictures (expenses.md): scaling, turning and JPEG encoding of
+# multi-megapixel photos in tests.
+[profile.dev.package.mk-import]
+opt-level = 3
+
+# Dependencies (Slint above all) build without debug information in development
+# builds: it keeps the target folder small; MoneyKeep's own crates keep theirs.
+[profile.dev.package."*"]
+debug = false

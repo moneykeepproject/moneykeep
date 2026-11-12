@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 4636cdd0dd56db8299b3a41beb0a1e0c7bb5391299d6a17df681cf5032ad9c4f # shrinks to ops = [Create { day: 1, legs: [(0, 0)], balance_to: 0, eur: false }]
+cc afb4611c93137a78f0fbb3671bf1753498007512eb46d52a690b56071cab5d60 # shrinks to ops = [Create { day: 1, legs: [(0, -1)], balance_to: 0, eur: false }, Reconcile { pick: 0, split: 0, state: 2 }]
+cc af4747bf3403d86f6f34a41a1ce0d1d6435eb519c6f0fcfd5f3ef32d06f1d646 # shrinks to ops = [Create { day: 2, legs: [(0, 1)], balance_to: 0, eur: false }, Close { day: Some(2) }, Close { day: None }, Update { pick: 0, day: 1, legs: [(0, 1)], balance_to: 0 }]
+cc 3db534e5df2b0d2e2f47eed1fb31046690d2f986c70e86ced289c2ba17f16789 # shrinks to ops = [Module { on: true }, Create { day: 1, legs: [(0, 1)], balance_to: 0, eur: true }, Module { on: false }, Delete { pick: 0 }]

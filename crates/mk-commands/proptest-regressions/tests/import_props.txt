@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc be91473d8e6880d28e1ce06f16eb99d19fc432c9c2bf41c9af971a12259cb836 # shrinks to file = [GenRow { day: 1, cents: -3, payee: 0 }], manual = [], csv = false

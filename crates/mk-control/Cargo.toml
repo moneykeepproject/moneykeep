@@ -1,0 +1,24 @@
+[package]
+name = "mk-control"
+description = "MoneyKeep's local control channel (mcp-server.md revision 3): the protocol, the discovery file, the app-side handler and the keep-mcp client. Loopback TCP only; no UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+directories.workspace = true
+getrandom.workspace = true
+mk-commands.workspace = true
+mk-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

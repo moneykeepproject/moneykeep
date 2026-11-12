@@ -1,0 +1,17 @@
+!Type:Bank
+D10/01/2026
+T1,500.00
+PEmployer Payroll
+MOctober salary
+^
+D10/03/2026
+T-42.10
+N1042
+PCity Water
+LUtilities
+^
+D10/05/2026
+T-18.75
+PCorner Grocery
+C*
+^

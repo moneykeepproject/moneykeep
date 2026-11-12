@@ -1,0 +1,499 @@
+// The desktop window (ui-slint.md revision 2): the start screen, or the main
+// window with its top bar, accounts rail with the slide-out pane, the current
+// page and its dialogs, the status message pop-up at the bottom-right corner
+// (app-desktop.md revision 42); the menu overlay and tooltips on top.
+
+import { ScrollView, Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { ItemVm, RowVm, SectionVm, PageVm, DialogVm, ColumnVm, ChartVm, LegendVm, LegendRowVm, ChartPieceVm, ChartPathVm, ChartLabelVm, K, E, Act, Keys } from "vm.slint";
+import { Card, Icon, IconButton, Chip, Overlay, MenuOverlay, TipBubble, VBar } from "widgets.slint";
+import { RowView, SectionView, Sections, PageView, DialogView, AnyRow } from "blocks.slint";
+import { ItemView, Tile } from "item.slint";
+import { StartTopBar, Launcher } from "cards.slint";
+import { CalculatorView, CalcVm } from "calculator.slint";
+
+export { PhoneWindow } from "phone.slint";
+export { Theme, Act, Overlay, ItemVm, RowVm, SectionVm, PageVm, DialogVm, ColumnVm, ChartVm, LegendVm, LegendRowVm, ChartPieceVm, ChartPathVm, ChartLabelVm, CalcVm }
+
+
+// The pane's right edge: dragging it sets the pane's width.
+component PaneGrip inherits Rectangle {
+    in property <length> current;
+    x: current - 6px;
+    width: 12px;
+    accessible-role: none;
+    ta := TouchArea {
+        mouse-cursor: ew-resize;
+        moved => {
+            if self.pressed {
+                // The pane's edge follows the pointer (the grip starts 6 px inside it).
+                Act.act("pane-resize", E.key, "w:" + Math.round((current - 6px + self.mouse-x) / 1px));
+            }
+        }
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.up { Act.act("pane-resize", E.key, "done"); }
+        }
+    }
+    Rectangle {
+        x: 5px;
+        width: 2px;
+        background: ta.has-hover || ta.pressed ? Theme.accent : transparent;
+    }
+}
+
+// The pane's content (shared by its pinned and sliding forms).
+component PaneContent inherits VerticalLayout {
+in property <string> pane-title;
+in property <[ItemVm]> pane-tools;
+in property <[SectionVm]> pane-sections;
+    padding: Theme.s3;
+    spacing: Theme.s2;
+    accessible-role: region;
+    accessible-label: "Accounts pane";
+    HorizontalLayout {
+        spacing: Theme.s1;
+        Text {
+            text: pane-title;
+            font-size: Theme.subtitle-size;
+            font-weight: 600;
+            color: Theme.text;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            accessible-role: text;
+            accessible-label: pane-title;
+        }
+        for it in pane-tools: ItemView { item: it; }
+    }
+    psv := ScrollView {
+        vertical-stretch: 1;
+        content-width: psv.visible-width;
+        content-height: pl.preferred-height;
+        pl := Sections {
+            width: psv.visible-width - Theme.s1;
+            spacing: Theme.s2;
+            sections: pane-sections;
+        }
+    }
+}
+
+// A tab of the accounts rail: an icon; its name (with the group total) is the
+// accessible name and the tooltip.
+component RailTab inherits Rectangle {
+    in property <ItemVm> item;
+    width: 48px;
+    height: 44px;
+    border-radius: Theme.radius-small;
+    background: item.checked ? Theme.accent-soft : ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.quick; }
+    accessible-role: tab;
+    accessible-label: item.label;
+    accessible-description: item.desc;
+    accessible-id: "railtab|" + item.id;
+    accessible-item-selected: item.checked;
+    accessible-checkable: true;
+    accessible-checked: item.checked;
+    accessible-action-default => { Act.act(item.id, E.click, ""); }
+    Rectangle {
+        x: 0;
+        width: 3px;
+        height: parent.height - 16px;
+        border-radius: 2px;
+        background: item.checked ? Theme.accent : transparent;
+    }
+    Icon {
+        name: item.icon;
+        width: 22px;
+        height: 22px;
+        tint: item.checked ? Theme.accent : Theme.text;
+    }
+    // Focus asked for by the controller (keyboard tests, Ctrl+B).
+    property <int> model-focus: item.focus;
+    changed model-focus => { if model-focus > 0 { fs.focus(); } }
+    // Tab reaches the rail; Enter or Space opens the tab's pane.
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { Act.act(item.id, E.click, ""); return accept; }
+            reject
+        }
+        changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+    }
+    if fs.has-focus: Rectangle {
+        border-radius: Theme.radius-small;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        // A click hides the tooltip (the pane it names is opening).
+        clicked => { Act.tip = ""; Act.act(item.id, E.click, ""); }
+        changed has-hover => {
+            if self.has-hover {
+                Act.tip = item.desc != "" ? item.desc : item.label;
+                Act.tip-x = root.absolute-position.x + root.width + 4px;
+                Act.tip-y = root.absolute-position.y + 10px;
+            } else {
+                Act.tip = "";
+            }
+            // A resting pointer opens the tab's pane (the controller times it).
+            Act.act(item.id, E.key, self.has-hover ? "hover" : "unhover");
+        }
+    }
+}
+
+// The status message (app-desktop.md revision 42): a card floating at the
+// window's bottom-right corner, `Theme.s3` from its edges. As wide as its text
+// (at most 420 px and the window less the margins; the text wraps), growing
+// upwards when Details open (at most half the window tall, scrolling beyond).
+// It is placed by hand, so it changes the size or place of nothing else.
+component MessagePopup inherits Rectangle {
+    in property <[SectionVm]> sections;
+    // False while it fades out (the views keep the last message for that).
+    in property <bool> open;
+    in property <length> area-width;
+    in property <length> area-height;
+    property <bool> has: sections.length > 0;
+    property <int> tone: has ? sections[0].tone : 0;
+    property <color> tone-color: tone == 2 ? Theme.error : tone == 4 ? Theme.warning : Theme.accent;
+    property <length> max-w: max(0px, min(420px, area-width - 2 * Theme.s3));
+    property <length> max-h: max(0px, area-height / 2);
+    property <length> want-h: lay.preferred-height;
+    // Open Details (a second row) keep a gutter for the scroll bar, which shows
+    // when they are taller than the room (the gutter does not depend on that,
+    // so the text does not reflow when the bar appears).
+    property <bool> gutter: has && sections[0].rows.length > 1;
+    width: min(max-w, lay.preferred-width + 2px);
+    height: min(max-h, want-h + 2px);
+    x: area-width - Theme.s3 - self.width;
+    y: area-height - Theme.s3 - self.height;
+    visible: has && self.opacity > 0.01;
+    // Fades in and out over 150 ms; at once when the system asks for reduced
+    // motion.
+    property <bool> shown: has && open;
+    opacity: shown ? 1 : 0;
+    animate opacity { duration: Theme.reduce-motion ? 0ms : 150ms; }
+    // A group (unnamed: its text is the message) with an id for tests.
+    accessible-role: groupbox;
+    accessible-id: "message|";
+    card := Rectangle {
+        border-radius: Theme.radius;
+        background: Theme.tone-bg(tone);
+        border-width: 1px;
+        border-color: tone-color;
+        drop-shadow-blur: 16px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: Theme.shadow;
+    }
+    // The pointer over the pop-up holds a message that closes by itself
+    // (revision 37); the area sees the pointer over its children, clicks stay
+    // with them.
+    TouchArea {
+        enabled: root.shown;
+        changed has-hover => { Act.act("message-band", E.key, self.has-hover ? "enter" : "leave"); }
+        fl := Flickable {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            content-width: self.width;
+            content-height: max(self.height, want-h);
+            interactive: gutter;
+            lay := HorizontalLayout {
+                width: fl.width;
+                padding-left: Theme.s3;
+                padding-right: Theme.s1 + (gutter ? Theme.scroll-width : 0px);
+                padding-top: Theme.s2;
+                padding-bottom: Theme.s2;
+                spacing: Theme.s2;
+                // The tone: ✓ (normal), ! (warning), × (error).
+                VerticalLayout {
+                    alignment: start;
+                    padding-top: 7px;
+                    Rectangle {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: tone-color;
+                        if tone != 4: Icon {
+                            name: tone == 2 ? "close" : "check";
+                            width: 12px;
+                            height: 12px;
+                            tint: Theme.tone-bg(tone);
+                        }
+                        if tone == 4: Text {
+                            text: "!";
+                            font-size: 12px;
+                            font-weight: 700;
+                            color: Theme.tone-bg(tone);
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                VerticalLayout {
+                    spacing: Theme.s1;
+                    horizontal-stretch: 1;
+                    if has: VerticalLayout {
+                        spacing: Theme.s1;
+                        for r in sections[0].rows: AnyRow { line: r; }
+                    }
+                }
+            }
+        }
+        if gutter: VBar {
+            x: parent.width - 1px - self.width;
+            y: 1px;
+            height: parent.height - 2px;
+            offset <=> fl.content-y;
+            total: fl.content-height;
+            view: fl.height;
+            aid: "message";
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "MoneyKeep";
+    min-width: 800px;
+    min-height: 560px;
+    preferred-width: 1280px;
+    preferred-height: 820px;
+    background: Theme.page;
+    default-font-size: Theme.body-size;
+
+    // 0: start screen, 1: main window.
+    in property <int> screen: 0;
+    in property <PageVm> page;
+    in property <[DialogVm]> dialogs;
+    in property <[ItemVm]> top-items;
+    in property <[SectionVm]> banner;
+    // The pop-up shows (false while the last message fades out).
+    in property <bool> message-open;
+    // Above the open dialog's scrim (it appeared while the dialog was open).
+    in property <bool> message-over-dialog;
+    in property <[ItemVm]> rail-items;
+    in property <bool> pane-open;
+    in property <bool> pane-pinned;
+    in property <string> pane-title;
+    in property <length> pane-width: 280px;
+    in property <[ItemVm]> pane-tools;
+    in property <[SectionVm]> pane-sections;
+    in property <bool> calc-open;
+    in property <CalcVm> calc;
+    in property <int> theme-choice: 0;
+    in property <string> ui-font: "";
+    in property <string> number-font: "";
+    in property <length> scroll-width: 14px;
+    in property <int> focus-root: 0;
+
+    callback pane-resized(length);
+
+    changed theme-choice => { apply-theme(); }
+    changed number-font => { Theme.number-font = number-font; }
+    changed scroll-width => { Theme.scroll-width = scroll-width; }
+    changed width => { Theme.narrow = self.width < 860px; }
+    // The pointer over the rail or the sliding pane (an unpinned pane closes a
+    // while after it left both).
+    property <bool> over-rail;
+    property <bool> over-slide;
+    property <bool> over-pane: over-rail || over-slide;
+    // A pinned pane docks beside the page; in a narrow window (large text) it
+    // floats over the page so the page keeps its room (app-desktop.md revision 23).
+    property <bool> docked: pane-pinned && root.width >= 860px;
+    // At most half the window wide.
+    property <length> pane-w: min(pane-width, root.width / 2);
+    changed over-pane => { Act.act("pane", E.key, over-pane ? "enter" : "leave"); }
+    init => {
+        apply-theme();
+        Theme.number-font = number-font;
+        Theme.scroll-width = scroll-width;
+        Theme.narrow = self.width < 860px;
+        keys.focus();
+    }
+    changed focus-root => { keys.focus(); }
+    function apply-theme() {
+        Theme.choice = theme-choice;
+        Palette.color-scheme = theme-choice == 1 ? ColorScheme.light : theme-choice == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
+    // The start screen uses the bundled Inter (revision 40); the rest the user's
+    // choice (or the built-in font).
+    default-font-family: screen == 0 ? Launcher.body-font : ui-font;
+
+    keys := FocusScope {
+        // A click on empty space gives the window its keys back.
+        focus-on-click: true;
+        key-pressed(e) => {
+            // Esc first dismisses a tooltip.
+            if e.text == Key.Escape && Act.tip != "" {
+                Act.tip = "";
+                return accept;
+            }
+            if Act.key("\n" + Keys.name(e)) { return accept; }
+            reject
+        }
+
+        // ---- start screen (revision 40: the launcher's look) ------------------
+        if screen == 0: Rectangle {
+            background: Launcher.page;
+            VerticalLayout {
+                StartTopBar { items: page.toolbar; }
+                Rectangle {
+                    vertical-stretch: 1;
+                    sv := ScrollView {
+                        width: parent.width - startbar.width;
+                        x: 0;
+                        vertical-scrollbar-policy: always-off;
+                        content-width: sv.visible-width;
+                        content-height: max(startcol.preferred-height, sv.visible-height);
+                        startcol := VerticalLayout {
+                            width: sv.visible-width;
+                            padding-top: 20px;
+                            padding-bottom: Theme.s5;
+                            padding-left: Theme.narrow ? 12px : 28px;
+                            padding-right: Theme.narrow ? 12px : 28px;
+                            alignment: start;
+                            Sections {
+                                spacing: 20px;
+                                sections: page.sections;
+                            }
+                        }
+                    }
+                    startbar := VBar {
+                        x: parent.width - self.width;
+                        height: parent.height;
+                        offset <=> sv.content-y;
+                        total: sv.content-height;
+                        view: sv.visible-height;
+                        aid: "start";
+                    }
+                }
+            }
+        }
+
+        // ---- main window --------------------------------------------------------
+        if screen == 1: VerticalLayout {
+            // Top bar.
+            Rectangle {
+                background: Theme.surface;
+                // A group with an id: its bounds, for tests (revision 42:
+                // nothing moves).
+                accessible-role: groupbox;
+                accessible-id: "region|top";
+                min-height: top.min-height;
+                top := HorizontalLayout {
+                    padding-left: Theme.s3;
+                    padding-right: Theme.s3;
+                    padding-top: Theme.s2;
+                    padding-bottom: Theme.s2;
+                    spacing: Theme.s1;
+                    for it in top-items: ItemView { item: it; in-row: true; }
+                }
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: Theme.border;
+                }
+            }
+            HorizontalLayout {
+                vertical-stretch: 1;
+                // The accounts rail.
+                Rectangle {
+                    width: 56px;
+                    background: Theme.surface;
+                    accessible-role: groupbox;
+                    accessible-id: "region|rail";
+                    TouchArea {
+                        changed has-hover => { root.over-rail = self.has-hover; }
+                        VerticalLayout {
+                            padding: Theme.s1;
+                            spacing: Theme.s1;
+                            alignment: start;
+                            for it in rail-items: RailTab { item: it; }
+                        }
+                    }
+                    Rectangle {
+                        x: parent.width - 1px;
+                        width: 1px;
+                        background: Theme.border;
+                    }
+                }
+                // A pinned pane takes room beside the page.
+                if docked && pane-open: Rectangle {
+                    width: pane-w;
+                    background: Theme.surface;
+                    PaneContent { pane-title: pane-title; pane-tools: pane-tools; pane-sections: pane-sections; }
+                    Rectangle {
+                        x: parent.width - 1px;
+                        width: 1px;
+                        background: Theme.border;
+                    }
+                    PaneGrip { current: pane-w; }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                    clip: true;
+                    accessible-role: groupbox;
+                    accessible-id: "region|page";
+                    PageView {
+                        page: page;
+                    }
+                    // An unpinned pane slides out over the page.
+                    slide := Rectangle {
+                        property <bool> shown: pane-open && !docked;
+                        x: shown ? 0px : -pane-w - 24px;
+                        width: pane-w;
+                        visible: self.x > -pane-w - 24px;
+                        background: Theme.surface;
+                        drop-shadow-blur: 18px;
+                        drop-shadow-offset-x: 4px;
+                        drop-shadow-color: Theme.shadow;
+                        animate x { duration: Theme.normal; easing: ease-out; }
+                        TouchArea {
+                            changed has-hover => { root.over-slide = self.has-hover; }
+                            if slide.visible: PaneContent { pane-title: pane-title; pane-tools: pane-tools; pane-sections: pane-sections; }
+                        }
+                        if slide.shown: PaneGrip { current: pane-w; }
+                    }
+                }
+            }
+        }
+
+        // The status message: over the page, the docked pane and the Edit
+        // pop-up; under dialogs' scrims unless it appeared while the dialog was
+        // open; always under menus and tooltips.
+        if screen == 1: MessagePopup {
+            z: message-over-dialog ? 1 : 0;
+            sections: banner;
+            open: message-open;
+            area-width: root.width;
+            area-height: root.height;
+        }
+        // Dialogs over everything else.
+        for d in dialogs: DialogView {
+            width: root.width;
+            height: root.height;
+            dialog: d;
+        }
+        if calc-open && screen == 1: CalculatorView {
+            calc: calc;
+            area-width: root.width;
+            area-height: root.height;
+        }
+        MenuOverlay {
+            z: 2;
+            width: root.width;
+            height: root.height;
+            chosen(id, i) => {
+                let kind = Overlay.kind;
+                let text = Overlay.options[i];
+                Overlay.close();
+                // Drop-down lists report the text (their options may have changed).
+                Act.act(id, kind == 3 ? E.secondary : E.select, kind == 1 ? "=" + text : i);
+            }
+        }
+        TipBubble { z: 3; area-width: root.width; area-height: root.height; }
+    }
+}

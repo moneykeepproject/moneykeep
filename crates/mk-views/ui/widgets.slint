@@ -1,0 +1,1244 @@
+// MoneyKeep's own small components, built on Slint's Fluent widgets: cards, icon
+// buttons, tabs, chips, the menu overlay and the tooltip.
+
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { Act } from "vm.slint";
+import { LineEdit, Spinner } from "std-widgets.slint";
+
+// The one menu shown at a time (drop-downs, the Features menu, row menus and
+// suggestions). It lives at the window's top so nothing clips it.
+export global Overlay {
+    in-out property <bool> open: false;
+    // The item the choice is reported to.
+    in-out property <string> id;
+    in-out property <[string]> options;
+    // Entries show a check mark on `current` (the Features menu).
+    in-out property <bool> checks;
+    // 0 menu, 1 drop-down list, 2 suggestions (no focus taken), 3 context menu.
+    in-out property <int> kind: 0;
+    in-out property <int> current: -1;
+    in-out property <length> x;
+    in-out property <length> y;
+    in-out property <length> w: 200px;
+    // Role tag for accessibility ids of the entries.
+    in-out property <string> role: "menuitem";
+    // Put before each entry's accessible name ("Payee suggestion").
+    in-out property <string> prefix;
+    in-out property <int> prefix-from;
+    // A search box at the top of a drop-down list (its accessible name; empty:
+    // no search box) and what was typed.
+    in-out property <string> search-label;
+    in-out property <string> search-text;
+
+    public function show(id: string, options: [string], checks: bool, kind: int, current: int, x: length, y: length, w: length, role: string) {
+        self.id = id;
+        self.options = options;
+        self.checks = checks;
+        self.kind = kind;
+        self.current = current;
+        self.x = x;
+        self.y = y;
+        self.w = w;
+        self.role = role;
+        self.prefix = "";
+        self.prefix-from = 0;
+        self.search-label = "";
+        self.search-text = "";
+        self.open = true;
+    }
+    public function close() {
+        self.open = false;
+    }
+}
+
+// A rounded surface with a subtle border (cards, tiles, dialogs).
+export component Card inherits Rectangle {
+    in property <bool> hoverable: false;
+    in property <bool> hovered: false;
+    in property <bool> pressed: false;
+    in property <bool> selected: false;
+    background: selected ? Theme.accent-soft : pressed ? Theme.pressed : hovered && hoverable ? Theme.hover : Theme.surface;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: selected ? Theme.accent : Theme.border;
+    drop-shadow-blur: hoverable && hovered ? 8px : 2px;
+    drop-shadow-offset-y: hoverable && hovered ? 2px : 1px;
+    drop-shadow-color: Theme.shadow;
+    animate background { duration: Theme.quick; }
+    animate drop-shadow-blur { duration: Theme.quick; }
+}
+
+// A tinted SVG icon.
+export component Icon inherits Image {
+    in property <string> name;
+    in property <color> tint: Theme.text;
+    source: Icons.get(name);
+    colorize: tint;
+    image-fit: contain;
+    image-rendering: smooth;
+    accessible-role: none;
+    width: 18px;
+    height: 18px;
+}
+
+// A square button showing an icon; `name` is its accessible name.
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> name;
+    in property <string> tip;
+    in property <bool> enabled: true;
+    in property <bool> checked: false;
+    in property <bool> checkable: false;
+    in property <string> aid;
+    in property <length> size: Theme.touch ? 48px : 32px;
+    // Focus asked for by the controller (a serial; app-desktop.md revision 42:
+    // F6 into the message pop-up), and keyboard focus coming and going.
+    in property <int> focus-request;
+    callback clicked();
+    callback focus-changed(bool);
+    changed focus-request => { if focus-request > 0 { fs.focus(); } }
+    width: size;
+    height: size;
+    border-radius: Theme.radius-small;
+    background: !enabled ? transparent : ta.pressed ? Theme.pressed : checked ? Theme.accent-soft : ta.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    accessible-checkable: checkable;
+    accessible-checked: checked;
+    accessible-action-default => { if enabled { clicked(); } }
+    Icon {
+        name: icon;
+        tint: !enabled ? Theme.text-secondary.with-alpha(0.5) : checked ? Theme.accent : Theme.text;
+        width: size * 0.56;
+        height: size * 0.56;
+    }
+    // Enabled even when the button is not, so a dimmed button still shows its
+    // tooltip ("Nothing to redo"); clicks then do nothing.
+    ta := TouchArea {
+        mouse-cursor: enabled ? pointer : default;
+        clicked => { if enabled { clicked(); } }
+        changed has-hover => {
+            if self.has-hover && tip != "" {
+                Act.tip = tip;
+                Act.tip-x = root.absolute-position.x;
+                Act.tip-y = root.absolute-position.y + root.height + 4px;
+            } else if !self.has-hover && Act.tip == tip {
+                Act.tip = "";
+            }
+        }
+    }
+    // The text changed under the pointer (a toggle's tip follows its state).
+    changed tip => { if ta.has-hover && tip != "" { Act.tip = tip; } }
+    // Focus ring.
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        enabled: enabled;
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return { clicked(); return accept; }
+            reject
+        }
+        changed has-focus => { root.focus-changed(self.has-focus); }
+    }
+    Rectangle {
+        border-radius: parent.border-radius;
+        border-width: fs.has-focus ? 2px : 0px;
+        border-color: Theme.focus;
+    }
+}
+
+// An icon button that selects a view (the Settings gear): a tab for screen readers.
+export component IconTab inherits IconButton {
+    accessible-role: tab;
+    accessible-item-selectable: true;
+    accessible-item-selected: self.checked;
+}
+
+// A selectable tab / navigation entry / chip.
+export component Chip inherits Rectangle {
+    in property <string> text;
+    in property <string> name: text;
+    in property <string> tip;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    in property <string> aid;
+    in property <bool> tab-marker: false;
+    in property <string> icon;
+    callback clicked();
+    min-height: Theme.control-height;
+    min-width: lay.min-width;
+    preferred-width: lay.preferred-width;
+    border-radius: Theme.radius-small;
+    // A selected chip is filled; a selected tab is marked only by its accent
+    // text and underline (quiet, like the platform's tab rows).
+    background: selected && !tab-marker ? Theme.accent-soft : ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    accessible-item-selected: selected;
+    accessible-checkable: true;
+    accessible-checked: selected;
+    accessible-action-default => { if enabled { clicked(); } }
+    opacity: enabled ? 1 : 0.5;
+    lay := HorizontalLayout {
+        padding-left: Theme.s3;
+        padding-right: Theme.s3;
+        spacing: Theme.s1 + 2px;
+        alignment: start;
+        if icon != "": Icon {
+            name: icon;
+            tint: selected ? Theme.accent : Theme.text;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: text;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            color: selected ? Theme.accent : Theme.text;
+            font-weight: selected ? 600 : 400;
+            font-size: Theme.body-size;
+            accessible-role: none;
+        }
+    }
+    // Selected marker.
+    Rectangle {
+        y: parent.height - 2px;
+        x: Theme.s3;
+        width: parent.width - 2 * Theme.s3;
+        height: 2px;
+        border-radius: 1px;
+        background: selected && tab-marker ? Theme.accent : transparent;
+        animate background { duration: Theme.quick; }
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { clicked(); }
+        changed has-hover => {
+            if self.has-hover && tip != "" {
+                Act.tip = tip;
+                Act.tip-x = root.absolute-position.x;
+                Act.tip-y = root.absolute-position.y + root.height + 4px;
+            } else if !self.has-hover && Act.tip == tip {
+                Act.tip = "";
+            }
+        }
+    }
+    // The text changed under the pointer (a toggle's tip follows its state).
+    changed tip => { if ta.has-hover && tip != "" { Act.tip = tip; } }
+}
+
+export component ChipTab inherits Chip {
+    tab-marker: true;
+    accessible-role: tab;
+}
+
+export component ChipCheck inherits Chip {
+    accessible-role: checkbox;
+}
+
+
+// The primary action button in the accent colour (the brand teal, not the
+// platform accent).
+export component PrimaryButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> has-icon;
+    in property <bool> enabled: true;
+    in property <string> name;
+    in property <string> aid;
+    in property <string> tip;
+    // A spinner in place of the icon (the password prompt's Open while unlocking).
+    in property <bool> busy;
+    // Only an icon: a square button.
+    property <bool> icon-only: text == "" && has-icon;
+    callback clicked();
+    min-height: Theme.control-height;
+    min-width: icon-only ? Theme.control-height : lay.min-width;
+    preferred-width: icon-only ? Theme.control-height : lay.preferred-width;
+    max-width: icon-only ? Theme.control-height : 100000px;
+    border-radius: Theme.radius-small;
+    background: busy ? Theme.accent-soft : !enabled ? Theme.border : ta.pressed ? Theme.accent.darker(0.25) : ta.has-hover ? Theme.accent.darker(0.12) : Theme.accent;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: name != "" ? name : text;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    accessible-action-default => { if enabled { clicked(); } }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        enabled: enabled;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { clicked(); return accept; }
+            reject
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: -3px; y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: Theme.radius-small + 3px;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+    lay := HorizontalLayout {
+        padding-left: icon-only ? 0px : Theme.s4;
+        padding-right: icon-only ? 0px : Theme.s4;
+        spacing: Theme.s1;
+        alignment: center;
+        if has-icon && !busy: Image {
+            source: icon;
+            colorize: Theme.on-accent;
+            width: icon-only ? 18px : 16px;
+            height: icon-only ? 18px : 16px;
+            y: (parent.height - self.height) / 2;
+            accessible-role: none;
+        }
+        if busy: Spinner {
+            indeterminate: true;
+            width: 18px;
+            height: 18px;
+            y: (parent.height - self.height) / 2;
+            accessible-role: none;
+        }
+        if !icon-only: Text {
+            text: root.text;
+            color: enabled ? Theme.on-accent : Theme.text-secondary;
+            font-weight: 600;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { fs.focus(); root.clicked(); }
+        changed has-hover => {
+            if self.has-hover && tip != "" {
+                Act.tip = tip;
+                Act.tip-x = root.absolute-position.x;
+                Act.tip-y = root.absolute-position.y + root.height + 4px;
+            } else if !self.has-hover && Act.tip == tip {
+                Act.tip = "";
+            }
+        }
+    }
+    // The text changed under the pointer (a toggle's tip follows its state).
+    changed tip => { if ta.has-hover && tip != "" { Act.tip = tip; } }
+}
+
+// A plain (secondary) button on a touch screen (the phone window;
+// mobile-capture.md revision 8). Fluent's Button takes its colours from Fluent's
+// palette, which in the browser can resolve to another scheme than the theme's
+// card (the phone drew "Save for later" white on white); this one draws with
+// the theme: the card's surface, the field border (3:1 against the card) and the
+// main text colour.
+export component TouchButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> has-icon;
+    in property <bool> enabled: true;
+    in property <string> name;
+    in property <string> aid;
+    in property <string> tip;
+    callback clicked();
+    min-height: Theme.control-height;
+    min-width: lay.min-width;
+    preferred-width: lay.preferred-width;
+    border-radius: Theme.radius-small;
+    border-width: 1px;
+    border-color: Theme.field-border;
+    background: !enabled ? Theme.surface-alt : ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : Theme.surface;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: name != "" ? name : text;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    accessible-action-default => { if enabled { clicked(); } }
+    fs := FocusScope {
+        focus-on-click: false;
+        enabled: enabled;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { clicked(); return accept; }
+            reject
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: -3px; y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: Theme.radius-small + 3px;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+    lay := HorizontalLayout {
+        padding-left: Theme.s4;
+        padding-right: Theme.s4;
+        spacing: Theme.s1;
+        alignment: center;
+        if has-icon: Image {
+            source: icon;
+            colorize: enabled ? Theme.text : Theme.text-secondary;
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            accessible-role: none;
+        }
+        if text != "": Text {
+            text: root.text;
+            color: enabled ? Theme.text : Theme.text-secondary;
+            font-size: Theme.body-size;
+            font-weight: 600;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        clicked => { fs.focus(); root.clicked(); }
+    }
+}
+
+// A check box in the brand style.
+export component CheckMark inherits Rectangle {
+    in property <string> text;
+    in property <bool> checked;
+    in property <bool> enabled: true;
+    in property <string> name;
+    in property <string> aid;
+    in property <string> tip;
+    callback toggled();
+    min-height: 24px;
+    min-width: lay.min-width;
+    preferred-width: lay.preferred-width;
+    accessible-role: checkbox;
+    accessible-label: name != "" ? name : text;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    accessible-checkable: true;
+    accessible-checked: checked;
+    accessible-action-default => { if enabled { toggled(); } }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (a scope that took the
+        // press for focus would swallow the first click; revision 32).
+        focus-on-click: false;
+        enabled: enabled;
+        key-pressed(e) => {
+            if e.text == " " { toggled(); return accept; }
+            reject
+        }
+    }
+    lay := HorizontalLayout {
+        spacing: Theme.s2;
+        box := Rectangle {
+            width: 18px;
+            height: 18px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 4px;
+            border-width: checked ? 0px : 1.5px;
+            border-color: fs.has-focus ? Theme.focus : ta.has-hover ? Theme.text-secondary : Theme.border.darker(0.2);
+            background: !enabled ? Theme.border : checked ? Theme.accent : Theme.surface;
+            animate background { duration: Theme.quick; }
+            if checked: Icon {
+                name: "check";
+                tint: Theme.on-accent;
+                width: 14px;
+                height: 14px;
+            }
+            if fs.has-focus: Rectangle {
+                x: -3px; y: -3px;
+                width: parent.width + 6px;
+                height: parent.height + 6px;
+                border-radius: 6px;
+                border-width: 2px;
+                border-color: Theme.focus;
+            }
+        }
+        if text != "": Text {
+            text: root.text;
+            color: enabled ? Theme.text : Theme.text-secondary;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { fs.focus(); root.toggled(); }
+    }
+}
+
+// The phone's switch (mobile-capture.md revision 13): the "on" track in the app's
+// accent, the "off" track in the border colour, a white knob in both; the knob's
+// side also tells the state.
+export component TouchSwitch inherits Rectangle {
+    in property <string> text;
+    in property <bool> checked;
+    in property <bool> enabled: true;
+    in property <string> name;
+    in property <string> aid;
+    in property <string> tip;
+    callback toggled();
+    min-height: max(32px, lay.min-height);
+    min-width: lay.min-width;
+    preferred-width: lay.preferred-width;
+    accessible-role: switch;
+    accessible-label: name != "" ? name : text;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    accessible-checkable: true;
+    accessible-checked: checked;
+    accessible-action-default => { if enabled { toggled(); } }
+    fs := FocusScope {
+        // Keys only: a tap is the touch area's.
+        focus-on-click: false;
+        enabled: enabled;
+        key-pressed(e) => {
+            if e.text == " " { toggled(); return accept; }
+            reject
+        }
+    }
+    lay := HorizontalLayout {
+        spacing: Theme.s3;
+        alignment: start;
+        track := Rectangle {
+            width: 52px;
+            height: 32px;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.height / 2;
+            background: checked ? Theme.accent : Theme.border;
+            opacity: enabled ? 1 : 0.5;
+            animate background { duration: Theme.quick; }
+            knob := Rectangle {
+                width: 24px;
+                height: 24px;
+                y: 4px;
+                x: checked ? parent.width - self.width - 4px : 4px;
+                border-radius: self.height / 2;
+                background: #ffffff;
+                drop-shadow-blur: 2px;
+                drop-shadow-color: #00000040;
+                animate x { duration: Theme.quick; }
+            }
+            if fs.has-focus: Rectangle {
+                x: -3px; y: -3px;
+                width: parent.width + 6px;
+                height: parent.height + 6px;
+                border-radius: self.height / 2;
+                border-width: 2px;
+                border-color: Theme.focus;
+            }
+        }
+        if text != "": Text {
+            text: root.text;
+            color: enabled ? Theme.text : Theme.text-secondary;
+            font-size: Theme.body-size;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            accessible-role: none;
+        }
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { fs.focus(); root.toggled(); }
+    }
+}
+
+// A text link.
+export component LinkText inherits Rectangle {
+    in property <string> text;
+    in property <string> name: text;
+    in property <bool> enabled: true;
+    in property <string> aid;
+    in property <string> tip;
+    in property <int> align: 0;
+    callback clicked();
+    min-width: t.min-width;
+    preferred-width: t.preferred-width;
+    min-height: max(t.preferred-height, 22px);
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: aid;
+    accessible-description: tip;
+    accessible-enabled: enabled;
+    // A link named for what it opens ("Show transactions for Salary"): the
+    // words drawn stay readable as its value.
+    accessible-value: name != text ? text : "";
+    accessible-action-default => { if enabled { clicked(); } }
+    t := Text {
+        width: 100%;
+        text: text;
+        color: enabled ? Theme.accent : Theme.text-secondary;
+        font-size: Theme.body-size;
+        horizontal-alignment: align == 2 ? right : align == 1 ? center : left;
+        vertical-alignment: center;
+        accessible-role: none;
+    }
+    Rectangle {
+        y: (parent.height + t.preferred-height) / 2 - 1px;
+        height: 1px;
+        x: align == 2 ? parent.width - t.preferred-width : align == 1 ? (parent.width - t.preferred-width) / 2 : 0;
+        width: min(t.preferred-width, parent.width);
+        background: ta.has-hover ? Theme.accent : transparent;
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { clicked(); }
+    }
+}
+
+// The search box at the top of a searched drop-down list; it takes focus
+// once it is in the window.
+component SearchBox inherits VerticalLayout {
+    property <bool> pending: true;
+    le := LineEdit {
+        placeholder-text: "Search";
+        accessible-label: Overlay.search-label;
+        accessible-id: "input|" + Overlay.id + "@search";
+        text: Overlay.search-text;
+        edited(t) => {
+            Overlay.search-text = t;
+            Act.act(Overlay.id, 7, "search:" + t);
+        }
+    }
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => {
+            pending = false;
+            le.focus();
+        }
+    }
+}
+
+// A vertical scroll bar beside a scroll view whose own bar is off: always
+// visible while there is more to see, `Theme.scroll-width` wide, a solid
+// handle on a solid track. `offset` is the view's content-y (zero or negative).
+export component VBar inherits Rectangle {
+    in-out property <length> offset;
+    in property <length> total;
+    in property <length> view;
+    in property <string> aid;
+    property <length> range: max(0px, total - view);
+    property <length> handle-h: max(24px, min(self.height, self.height * view / max(1px, total)));
+    property <length> travel: max(1px, self.height - handle-h);
+    // The gutter is always kept, so content does not jump when the bar appears.
+    width: Theme.scroll-width;
+    visible: range > 0.5px;
+    background: Theme.scroll-track;
+    accessible-role: slider;
+    accessible-label: "Scroll bar";
+    accessible-id: "scrollbar|" + aid;
+    accessible-value-minimum: 0;
+    accessible-value-maximum: range / 1px;
+    accessible-value: -offset / 1px;
+    accessible-action-set-value(v) => {
+        offset = -max(0px, min(range, v.to-float() * 1px));
+    }
+    TouchArea {
+        // A click on the track moves a page towards it.
+        clicked => {
+            if self.mouse-y < handle.y {
+                offset = min(0px, offset + view);
+            } else if self.mouse-y > handle.y + handle.height {
+                offset = max(-range, offset - view);
+            }
+        }
+        scroll-event(e) => {
+            offset = max(-range, min(0px, offset + e.delta-y));
+            accept
+        }
+    }
+    handle := Rectangle {
+        x: 2px;
+        width: parent.width - 4px;
+        y: range > 0 ? (-offset / range) * travel : 0px;
+        height: handle-h;
+        border-radius: self.width / 2;
+        background: hta.pressed ? Theme.text : hta.has-hover ? Theme.text-secondary : Theme.scroll-handle;
+        hta := TouchArea {
+            mouse-cursor: default;
+            // The handle moves with the pointer, so the distance from where it
+            // was pressed is the step since the last move.
+            moved => {
+                if self.pressed {
+                    offset = max(-range, min(0px, offset - (self.mouse-y - self.pressed-y) / travel * range));
+                }
+            }
+        }
+    }
+}
+
+// A horizontal scroll bar (the report's period columns); `name` says what it
+// scrolls.
+export component HBar inherits Rectangle {
+    in-out property <length> offset;
+    in property <length> total;
+    in property <length> view;
+    in property <string> aid;
+    in property <string> name: "Scroll bar";
+    property <length> range: max(0px, total - view);
+    property <length> handle-w: max(24px, min(self.width, self.width * view / max(1px, total)));
+    property <length> travel: max(1px, self.width - handle-w);
+    height: range > 0.5px ? Theme.scroll-width : 0px;
+    visible: range > 0.5px;
+    background: Theme.scroll-track;
+    accessible-role: slider;
+    accessible-label: name;
+    accessible-id: "scrollbar|" + aid;
+    accessible-value-minimum: 0;
+    accessible-value-maximum: range / 1px;
+    accessible-value: -offset / 1px;
+    accessible-action-set-value(v) => {
+        offset = -max(0px, min(range, v.to-float() * 1px));
+    }
+    TouchArea {
+        clicked => {
+            if self.mouse-x < handle.x {
+                offset = min(0px, offset + view);
+            } else if self.mouse-x > handle.x + handle.width {
+                offset = max(-range, offset - view);
+            }
+        }
+        scroll-event(e) => {
+            offset = max(-range, min(0px, offset + (e.delta-x != 0 ? e.delta-x : e.delta-y)));
+            accept
+        }
+    }
+    handle := Rectangle {
+        y: 2px;
+        height: parent.height - 4px;
+        x: range > 0 ? (-offset / range) * travel : 0px;
+        width: handle-w;
+        border-radius: self.height / 2;
+        background: hta.pressed ? Theme.text : hta.has-hover ? Theme.text-secondary : Theme.scroll-handle;
+        hta := TouchArea {
+            mouse-cursor: default;
+            moved => {
+                if self.pressed {
+                    offset = max(-range, min(0px, offset - (self.mouse-x - self.pressed-x) / travel * range));
+                }
+            }
+        }
+    }
+}
+
+// The menu overlay, placed by the window over everything else.
+export component MenuOverlay inherits Rectangle {
+    callback chosen(string, int);
+    visible: Overlay.open;
+    // Clicking outside closes the menu.
+    TouchArea {
+        enabled: Overlay.open && Overlay.kind != 2;
+        clicked => { Overlay.close(); }
+    }
+    panel := Rectangle {
+        x: min(Overlay.x, root.width - self.width - 8px);
+        y: Overlay.y + self.height > root.height - 8px ? max(8px, Overlay.y - self.height - 40px) : Overlay.y;
+        width: max(Overlay.w, 160px);
+        height: min(col.preferred-height, root.height * 0.6);
+        background: Theme.surface;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.border;
+        drop-shadow-blur: 16px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: Theme.shadow;
+        clip: true;
+        opacity: Overlay.open ? 1 : 0;
+        animate opacity { duration: Theme.quick; }
+        menubar := VBar {
+            x: parent.width - self.width;
+            height: parent.height;
+            offset <=> fl.content-y;
+            total: col.preferred-height;
+            view: fl.height;
+            aid: "menu";
+            visible: col.preferred-height > fl.height + 0.5px;
+        }
+        fl := Flickable {
+            // The bar's gutter is always kept (no layout loop with the text).
+            width: parent.width - menubar.width;
+            x: 0;
+            content-height: col.preferred-height;
+            col := VerticalLayout {
+                padding: Theme.s1;
+                if Overlay.search-label != "": SearchBox { }
+                for opt[i] in Overlay.options: Rectangle {
+                    height: max(Theme.touch ? 48px : 32px, label.preferred-height + 12px);
+                    border-radius: Theme.radius-small;
+                    background: ta.has-hover || (i == Overlay.current && Overlay.kind == 2) ? Theme.hover : (i == Overlay.current && Overlay.kind == 1 && !Overlay.checks) ? Theme.accent-soft : transparent;
+                    accessible-role: list-item;
+                    accessible-label: Overlay.prefix != "" && i >= Overlay.prefix-from ? Overlay.prefix + " " + opt : opt;
+                    accessible-id: Overlay.role + "|" + Overlay.id + "@" + i;
+                    accessible-item-selectable: true;
+                    accessible-item-selected: i == Overlay.current;
+                    accessible-checkable: Overlay.checks;
+                    accessible-checked: Overlay.checks && i == Overlay.current;
+                    accessible-action-default => { chosen(Overlay.id, i); }
+                    HorizontalLayout {
+                        padding-left: Theme.s3;
+                        padding-right: Theme.s3;
+                        spacing: Theme.s2;
+                        if Overlay.checks: Rectangle {
+                            width: 16px;
+                            Icon {
+                                name: "check";
+                                width: 14px;
+                                height: 14px;
+                                tint: Theme.accent;
+                                visible: i == Overlay.current;
+                            }
+                        }
+                        label := Text {
+                            text: opt;
+                            vertical-alignment: center;
+                            color: Theme.text;
+                            font-size: Theme.body-size;
+                            wrap: word-wrap;
+                            accessible-role: none;
+                        }
+                    }
+                    ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { chosen(Overlay.id, i); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The tooltip bubble.
+export component TipBubble inherits Rectangle {
+    in property <length> area-width;
+    in property <length> area-height;
+    visible: Act.tip != "";
+    x: min(Act.tip-x, area-width - self.width - 8px);
+    y: Act.tip-y + self.height > area-height ? Act.tip-y - self.height - 40px : Act.tip-y;
+    width: min(t.preferred-width + 2 * Theme.s2, 360px);
+    height: t.preferred-height + 2 * Theme.s1 + 4px;
+    background: Theme.dark ? #3d3a36 : #33302c;
+    border-radius: Theme.radius-small;
+    drop-shadow-blur: 6px;
+    drop-shadow-color: Theme.shadow;
+    accessible-role: none;
+    t := Text {
+        x: Theme.s2;
+        width: parent.width - 2 * Theme.s2;
+        text: Act.tip;
+        color: #f4f2ef;
+        font-size: Theme.caption-size;
+        wrap: word-wrap;
+        vertical-alignment: center;
+        accessible-role: text;
+        accessible-label: Act.tip;
+        accessible-id: "tooltip|tip";
+    }
+}
+
+
+// ----- the phone's touch controls (mobile-capture.md revision 7) -----------------
+
+// A keypad key in one of the app's button styles: 0 the normal key (the
+// calculator's key face), 1 accent-tinted (operators), 2 primary, 3 quiet.
+export component KeyButton inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <string> name;
+    in property <string> aid;
+    in property <int> style;
+    in property <bool> enabled: true;
+    callback clicked();
+    min-height: 56px;
+    preferred-height: 56px;
+    min-width: 48px;
+    border-radius: Theme.radius-small * 2;
+    property <color> face: style == 2 ? Theme.accent : style == 1 ? Theme.accent-soft : style == 3 ? transparent : Theme.surface-alt;
+    background: ta.pressed ? (style == 2 ? Theme.accent.darker(0.25) : style == 1 ? Theme.accent-soft.darker(0.15) : Theme.pressed)
+        : ta.has-hover ? (style == 2 ? Theme.accent.darker(0.12) : style == 1 ? Theme.accent-soft.darker(0.07) : Theme.hover) : face;
+    border-width: style == 0 ? 1px : 0px;
+    border-color: Theme.border;
+    animate background { duration: Theme.quick; }
+    property <color> ink: style == 2 ? Theme.on-accent : style == 1 ? Theme.accent : Theme.text;
+    accessible-role: button;
+    accessible-label: name != "" ? name : text;
+    accessible-id: aid;
+    accessible-enabled: enabled;
+    accessible-action-default => { if enabled { clicked(); } }
+    opacity: enabled ? 1 : 0.5;
+    if icon != "": Icon {
+        name: icon;
+        tint: ink;
+        width: 22px;
+        height: 22px;
+    }
+    if icon == "": Text {
+        text: root.text;
+        font-size: style == 2 || style == 3 ? 17px : 22px;
+        font-weight: style == 2 ? 600 : 400;
+        font-family: Theme.number-font;
+        color: ink;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        accessible-role: none;
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// A calendar day: filled with the accent when selected, ringed when today, muted
+// for the next and previous months, dimmed when out of range.
+export component DayButton inherits Rectangle {
+    in property <string> text;
+    in property <string> name;
+    in property <string> aid;
+    in property <bool> selected;
+    in property <bool> today;
+    in property <bool> muted;
+    in property <bool> enabled: true;
+    callback clicked();
+    min-width: 44px;
+    min-height: 44px;
+    preferred-height: 48px;
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: aid;
+    accessible-enabled: enabled;
+    accessible-item-selectable: true;
+    accessible-item-selected: selected;
+    accessible-action-default => { if enabled { clicked(); } }
+    property <length> d: min(self.width, self.height) - 4px;
+    Rectangle {
+        width: d;
+        height: d;
+        border-radius: d / 2;
+        background: selected ? Theme.accent : ta.pressed && enabled ? Theme.pressed : ta.has-hover && enabled ? Theme.hover : transparent;
+        border-width: today && !selected ? 2px : 0px;
+        border-color: Theme.accent;
+        animate background { duration: Theme.quick; }
+    }
+    Text {
+        text: root.text;
+        font-size: 16px;
+        font-weight: selected || today ? 600 : 400;
+        color: selected ? Theme.on-accent : muted || !enabled ? Theme.text-secondary : Theme.text;
+        opacity: enabled ? 1 : 0.45;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        accessible-role: none;
+    }
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// The phone's Amount card, one button: a caption over a large amount with the
+// currency symbol muted before it.
+export component AmountCard inherits Rectangle {
+    in property <string> caption;
+    in property <string> symbol;
+    in property <string> amount;
+    // A unit after the amount ("mi" for the phone's Miles card, revision 11).
+    in property <string> suffix;
+    in property <bool> unset;
+    in property <string> name;
+    in property <string> aid;
+    callback clicked();
+    min-height: lay.min-height;
+    border-radius: Theme.radius;
+    background: ta.pressed ? Theme.pressed : Theme.surface;
+    border-width: fs.has-focus ? 2px : 1px;
+    border-color: fs.has-focus ? Theme.focus : Theme.border;
+    drop-shadow-blur: 2px;
+    drop-shadow-offset-y: 1px;
+    drop-shadow-color: Theme.shadow;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: aid;
+    accessible-action-default => { clicked(); }
+    lay := VerticalLayout {
+        padding: Theme.s4;
+        spacing: Theme.s1;
+        Text {
+            text: caption;
+            color: Theme.text-secondary;
+            font-size: Theme.caption-size;
+            accessible-role: none;
+        }
+        HorizontalLayout {
+            spacing: Theme.s2;
+            alignment: start;
+            if symbol != "": Text {
+                text: symbol;
+                color: Theme.text-secondary;
+                font-size: 24px;
+                font-family: Theme.number-font;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+            Text {
+                text: amount;
+                color: unset ? Theme.text-secondary : Theme.text;
+                font-size: 32px;
+                font-weight: 600;
+                font-family: Theme.number-font;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+            if suffix != "": Text {
+                text: suffix;
+                color: Theme.text-secondary;
+                font-size: 24px;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+        }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { clicked(); return accept; }
+            reject
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// A button drawn like a field (the phone's Date), an icon at its end.
+export component FieldButton inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <string> name;
+    in property <string> aid;
+    callback clicked();
+    min-height: Theme.field-height;
+    min-width: 120px;
+    horizontal-stretch: 1;
+    border-radius: Theme.radius-small;
+    background: ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : Theme.surface;
+    border-width: 1px;
+    border-color: fs.has-focus ? Theme.focus : Theme.border;
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: aid;
+    accessible-action-default => { clicked(); }
+    HorizontalLayout {
+        padding-left: Theme.s3;
+        padding-right: Theme.s3;
+        spacing: Theme.s2;
+        Text {
+            text: root.text;
+            color: Theme.text;
+            font-size: max(16px, Theme.body-size);
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            accessible-role: none;
+        }
+        if icon != "": Icon {
+            name: icon;
+            width: 20px;
+            height: 20px;
+            y: (parent.height - self.height) / 2;
+            tint: Theme.text-secondary;
+        }
+    }
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (revision 32).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { clicked(); return accept; }
+            reject
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// A receipt thumbnail (64 px) that opens the photo, with a remove (×) button at
+// its top right whose tap area is 48 × 48.
+export component ThumbView inherits Rectangle {
+    in property <image> picture;
+    in property <bool> has-picture;
+    in property <string> text;
+    in property <string> name;
+    in property <string> remove-name;
+    in property <string> aid;
+    callback open();
+    callback remove();
+    width: 64px + 24px;
+    height: 64px + 24px;
+    thumb := Rectangle {
+        x: 0;
+        y: 24px;
+        width: 64px;
+        height: 64px;
+        border-radius: Theme.radius-small * 2;
+        background: Theme.surface-alt;
+        border-width: 1px;
+        border-color: Theme.border;
+        clip: true;
+        accessible-role: button;
+        accessible-label: name;
+        accessible-id: "thumb|" + aid;
+        accessible-action-default => { open(); }
+        if has-picture: Image {
+            width: 100%;
+            height: 100%;
+            source: picture;
+            image-fit: cover;
+            accessible-role: none;
+        }
+        if !has-picture: Text {
+            text: root.text;
+            color: Theme.text-secondary;
+            font-size: Theme.caption-size;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            accessible-role: none;
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { open(); }
+        }
+    }
+    x-btn := Rectangle {
+        x: 64px - 24px;
+        y: 0;
+        width: 48px;
+        height: 48px;
+        accessible-role: button;
+        accessible-label: remove-name;
+        accessible-id: "button|" + aid + "/remove";
+        accessible-action-default => { remove(); }
+        Rectangle {
+            width: 26px;
+            height: 26px;
+            border-radius: 13px;
+            background: xta.pressed ? Theme.text-secondary : Theme.text;
+            Icon {
+                name: "close";
+                width: 14px;
+                height: 14px;
+                tint: Theme.surface;
+            }
+        }
+        xta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { remove(); }
+        }
+    }
+}
+
+// A tab of the phone's bottom tab bar (mobile-capture.md revision 9): a 24 px
+// painted icon over a 12 px label, the accent colour when selected and the muted
+// colour otherwise, a count badge on the icon. The whole tab is the tap target.
+export component TabButton inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <string> name;
+    in property <string> aid;
+    in property <bool> selected;
+    in property <int> count;
+    callback clicked();
+    min-height: 48px;
+    min-width: 64px;
+    horizontal-stretch: 1;
+    background: ta.pressed ? Theme.pressed : transparent;
+    animate background { duration: Theme.quick; }
+    property <color> ink: selected ? Theme.accent : Theme.text-secondary;
+    accessible-role: tab;
+    accessible-label: name != "" ? name : text;
+    accessible-id: aid;
+    accessible-item-selectable: true;
+    accessible-item-selected: selected;
+    accessible-action-default => { clicked(); }
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 24px;
+                height: 24px;
+                Icon { name: icon; tint: ink; width: 24px; height: 24px; }
+                if count > 0: Rectangle {
+                    x: 14px;
+                    y: -5px;
+                    width: max(18px, badge.preferred-width + 8px);
+                    height: 18px;
+                    border-radius: 9px;
+                    background: #c02626;
+                    badge := Text {
+                        text: count;
+                        color: #ffffff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        accessible-role: none;
+                    }
+                }
+            }
+        }
+        Text {
+            text: root.text;
+            color: ink;
+            font-size: 12px;
+            font-weight: selected ? 600 : 400;
+            horizontal-alignment: center;
+            accessible-role: none;
+        }
+    }
+    fs := FocusScope {
+        // Keys only: a tap is the touch area's (a scope that took the press for
+        // focus would swallow the first tap).
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { root.clicked(); return accept; }
+            reject
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: 2px; y: 2px;
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        border-radius: 8px;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

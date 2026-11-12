@@ -1,0 +1,123 @@
+// MoneyKeep's look (ui-slint.md revision 2, "Look and feel"): Fluent style, light
+// and dark from the operating system (or the user's choice), the teal accent, an
+// 8 px grid and a four-step type scale.
+
+import { Palette } from "std-widgets.slint";
+
+export global Theme {
+    // 0 follow the system, 1 light, 2 dark (Settings → Display).
+    in property <int> choice: 0;
+    // Dark exactly when Slint's Fluent widgets draw dark (mobile-capture.md
+    // revision 8). Following the system, the window sets `Palette.color-scheme` to
+    // `unknown`; Fluent then follows the system's scheme, while a comparison with
+    // `ColorScheme.dark` reads `unknown` as light. A phone in dark mode drew our
+    // light card under Fluent's dark field: white text on a see-through fill,
+    // readable only once focus gave the field Fluent's dark fill. Fluent's own
+    // background tells which scheme it resolved, for every choice.
+    property <color> fluent-background: Palette.background;
+    out property <bool> dark: fluent-background.to-hsv().value < 0.5;
+
+    // The number font (Settings → Display); empty for the built-in one.
+    in property <string> number-font: "";
+    // Scroll bar width in pixels (Settings → Display, revision 27).
+    in property <length> scroll-width: 14px;
+    // Short animations, off when the system asks for reduced motion.
+    in property <bool> reduce-motion: false;
+    out property <duration> quick: reduce-motion ? 0ms : 120ms;
+    out property <duration> normal: reduce-motion ? 0ms : 180ms;
+
+    // A narrow window (large text sizes): tighter page margins and table gaps.
+    in property <bool> narrow: false;
+    out property <length> page-margin: narrow ? 8px : 24px;
+    out property <length> card-padding: narrow ? 8px : 16px;
+    out property <length> cell-gap: narrow ? 4px : 12px;
+
+    // Spacing grid.
+    out property <length> s1: 4px;
+    out property <length> s2: 8px;
+    out property <length> s3: 12px;
+    out property <length> s4: 16px;
+    out property <length> s5: 24px;
+    out property <length> s6: 32px;
+    // A touch screen (the phone window, mobile-capture.md revision 7): tap
+    // targets at least 48 px tall, fields 52 px with 16 px text (so the browser
+    // never zooms in), 16 px card corners.
+    in property <bool> touch: false;
+    out property <length> radius: touch ? 16px : 8px;
+    out property <length> radius-small: 4px;
+    out property <length> control-height: touch ? 48px : 32px;
+    out property <length> field-height: touch ? 52px : 32px;
+
+    // Type scale.
+    out property <length> title-size: 24px;
+    out property <length> subtitle-size: 17px;
+    out property <length> body-size: touch ? 16px : 14px;
+    out property <length> caption-size: touch ? 14px : 12px;
+
+    // Colours.
+    out property <color> accent: dark ? #4FB3AE : #0F5E5C;
+    out property <color> on-accent: dark ? #0d1f1e : #ffffff;
+    out property <color> accent-soft: dark ? #1E4C4A : #CFE6E4;
+    out property <color> page: dark ? #1f1d1b : #f4f2ef;
+    out property <color> surface: dark ? #2a2826 : #fdfcfa;
+    out property <color> surface-alt: dark ? #312e2b : #f0ede8;
+    out property <color> hover: dark ? #3a3633 : #e9e5df;
+    out property <color> pressed: dark ? #45403c : #ddd8d0;
+    out property <color> border: dark ? #45413d : #dcd7cf;
+    // Text fields on the phone (mobile-capture.md revision 8): a fill of their own
+    // (light: darker than the card; dark: lighter), text 4.5:1 or more against it
+    // (main text about 13:1 and 10:1, muted text 4.8:1 and 5.6:1), a border 3:1
+    // against the card.
+    out property <color> field: dark ? #37332f : #efebe5;
+    out property <color> field-border: dark ? #857e76 : #8a8379;
+    // Scroll bars: always shown, the handle at least 3:1 against the track.
+    out property <color> scroll-track: dark ? #34312e : #ebe7e1;
+    out property <color> scroll-handle: dark ? #a39d94 : #7a746b;
+    out property <color> text: dark ? #ece8e2 : #262421;
+    out property <color> text-secondary: dark ? #b5afa6 : #6b655d;
+    out property <color> error: dark ? #F08A80 : #A32D24;
+    out property <color> success: dark ? #8fd19e : #2e7d32;
+    out property <color> warning: dark ? #f2c66d : #8a5a00;
+    out property <color> increase: dark ? #8fd19e : #2e7d32;
+    out property <color> decrease: dark ? #F08A80 : #A32D24;
+    out property <color> scrim: dark ? #00000099 : #00000055;
+    out property <color> focus: dark ? #7fd3ce : #0F5E5C;
+    out property <color> shadow: dark ? #00000080 : #0000002a;
+
+    // Series colours for charts.
+    // Negative indices: -2 grid lines, -3 muted marks, -4 the text colour.
+    public pure function series(i: int) -> color {
+        if i == -2 { return border; }
+        if i == -3 { return text-secondary; }
+        if i == -4 { return text; }
+        if Math.mod(i, 8) == 0 { return dark ? #4FB3AE : #0F5E5C; }
+        if Math.mod(i, 8) == 1 { return dark ? #f2a65a : #c26a14; }
+        if Math.mod(i, 8) == 2 { return dark ? #8fa8f0 : #3956b8; }
+        if Math.mod(i, 8) == 3 { return dark ? #e58fb4 : #a8366b; }
+        if Math.mod(i, 8) == 4 { return dark ? #b7cf6b : #5c7a12; }
+        if Math.mod(i, 8) == 5 { return dark ? #b49af0 : #6a45b8; }
+        if Math.mod(i, 8) == 6 { return dark ? #e6d36b : #8a7400; }
+        dark ? #9fb3b3 : #4d6464
+    }
+
+    // Text colour of a tone (see `Tone` in mk-ui).
+    public pure function tone(t: int) -> color {
+        if t == 1 { return text-secondary; }
+        if t == 2 { return error; }
+        if t == 3 { return success; }
+        if t == 4 { return warning; }
+        if t == 5 { return accent; }
+        if t == 6 { return decrease; }
+        if t == 7 { return increase; }
+        text
+    }
+
+    // Background of a banner or badge of a tone.
+    public pure function tone-bg(t: int) -> color {
+        if t == 2 { return dark ? #4a2420 : #f7dfdc; }
+        if t == 3 { return dark ? #1f3b25 : #dcefdc; }
+        if t == 4 { return dark ? #46381a : #f7ebcf; }
+        if t == 5 { return accent-soft; }
+        surface-alt
+    }
+}

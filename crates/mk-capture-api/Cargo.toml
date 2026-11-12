@@ -1,0 +1,28 @@
+[package]
+name = "mk-capture-api"
+description = "MoneyKeep phone capture: request/response types, limits and validation shared by the capture server, the desktop and the phone client. No IO; compiles for wasm32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+# build.rs and build/capture_version.rs (release-packaging.md): the capture version is
+# a SHA-256 over the sources, found through `cargo metadata`. Build time only; the
+# library itself still depends on serde alone.
+[build-dependencies]
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

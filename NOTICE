@@ -1,0 +1,30 @@
+MoneyKeep
+Copyright (c) 2026 MoneyKeep Project contributors
+
+Licensed under either of
+
+  * Apache License, Version 2.0 (LICENSE-APACHE)
+  * MIT license (LICENSE-MIT)
+
+at your option.
+
+MoneyKeep is an independent project and is not affiliated with or endorsed by
+any other software vendor.
+
+The user interface is drawn with Slint (https://slint.dev), used under the Slint
+Royalty-free License 2.0 (owner decision 2026-11-02). As that licence requires,
+MoneyKeep shows Slint's "About Slint" widget in its About MoneyKeep dialog and in
+the phone capture app's About screen.
+MoneyKeep does not redistribute Slint on its own and does not expose Slint's
+APIs to scripts or plugins. MoneyKeep's own code stays MIT OR Apache-2.0.
+
+The book pictures (crates/mk-views/assets/book-pictures) are made from stock
+photos used under the Pexels License, the Pixabay Content License and the
+Unsplash License; each picture's photographer, source and licence are listed in
+ATTRIBUTION.md. The bundled fonts (Archivo, Inter, Geist Mono) are under the SIL
+Open Font License 1.1, with their licence texts beside them; see ATTRIBUTION.md.
+
+Every third-party crate compiled into the programs is listed with its version,
+its licence and the licence texts it ships in THIRD-PARTY-LICENSES.txt, installed
+beside the programs and opened from About MoneyKeep -> Third-party licences.
+Other third-party assets are itemised in ATTRIBUTION.md.

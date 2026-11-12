@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE r [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<Statement><Transactions><Transaction><Activity>&xxe;</Activity></Transaction></Transactions></Statement>

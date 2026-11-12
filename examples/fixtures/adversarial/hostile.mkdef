@@ -1,0 +1,24 @@
+moneykeep_definition = 1
+id = "org.example.hostile"
+version = "1.0.0"
+name = "Hostile ‮example"
+homepage = "javascript:alert(1)"
+requires = ["rule-condition-any"]
+
+[[rule]]
+key = "redos"
+name = "ReDoS"
+[[rule.conditions]]
+field = "payee"
+op = "regex"
+value = "(a+)+$"
+[[rule.actions]]
+action = "set_payee"
+payee = "x"
+
+[[investment_profile]]
+key = "evil"
+name = "Evil"
+format = "json"
+records = "rows"
+fields = { external_id = "../../etc/passwd" }

@@ -1,0 +1,96 @@
+# "Mac runner check" (docs/specs/macos-release.md W6; runbook docs/deploy/mac-runner.md step 9):
+# run by hand to see that the project's Mac is ready for release jobs. On the self-hosted runner
+# it prints macOS, Apple's command line tools, the Rust targets and the free space; checks the
+# signing identity and the mk-notary profile (or reports "ad hoc only" until the owner enrols,
+# O1); and builds, signs and verifies a tiny universal test program. Like release.yml it starts
+# only by hand and waits for the owner's approval in `mac-release` (W9 and O3, checked by
+# `cargo xtask workflows`). Only GitHub's own actions, pinned to a full commit (W8).
+name: Mac runner check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the Mac runner
+    runs-on: [self-hosted, macOS, ARM64, mk-mac]
+    timeout-minutes: 20
+    environment: mac-release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Remove untracked files
+        run: git clean -ffdx
+      - name: macOS, tools, Rust and free space
+        run: |
+          set -euo pipefail
+          if [ -f "$HOME/.cargo/env" ]; then
+            # shellcheck disable=SC1091
+            . "$HOME/.cargo/env"
+            echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
+          fi
+          {
+            echo "### Mac runner check"
+            echo
+            echo "- macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion)), $(uname -m), user $(whoami)"
+            echo "- Command line tools: $(xcode-select -p)"
+            echo "- $(rustc --version); rustup $(rustup --version 2>/dev/null | head -n 1)"
+            echo "- Free space: $(df -h "$HOME" | tail -n 1 | awk '{ print $4 }') in $HOME"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          installed="$(rustup target list --installed)"
+          echo "$installed"
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            if ! printf '%s\n' "$installed" | grep -qx "$t"; then
+              echo "::error::Rust target $t is not installed: run rustup target add $t as mkbuild (runbook step 4)"
+              exit 1
+            fi
+          done
+          free_kb="$(df -k "$HOME" | tail -n 1 | awk '{ print $4 }')"
+          if [ "$free_kb" -lt $((20 * 1024 * 1024)) ]; then
+            echo "::warning::Less than 20 GB free: delete ~/mk-build (runbook step 10)"
+          fi
+          if [ "$(id -un)" != mkbuild ]; then
+            echo "::warning::The runner runs as $(id -un), not mkbuild (runbook step 2)"
+          fi
+          if id -Gn | tr ' ' '\n' | grep -qx admin; then
+            echo "::warning::$(id -un) is an administrator; the runbook asks for a standard user (step 2)"
+          fi
+      - name: Signing identity and notarization profile
+        run: |
+          set -euo pipefail
+          bash packaging/macos/runner-keychain.sh
+          if grep -q '^MACOS_SIGN_IDENTITY=' "$GITHUB_ENV"; then
+            echo "- Signing: Developer ID identity and the mk-notary profile found" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Signing: ad hoc only (no Developer ID yet; runbook step 8)" >>"$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Build, sign and verify a test program
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/mk-runner-check"
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          printf 'fn main() {\n    println!("MoneyKeep Mac runner check");\n}\n' >"$dir/check.rs"
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            rustc --edition 2021 -O --target "$t" -o "$dir/check-$t" "$dir/check.rs"
+          done
+          lipo -create -output "$dir/check" "$dir/check-aarch64-apple-darwin" "$dir/check-x86_64-apple-darwin"
+          lipo -info "$dir/check"
+          identity="${MACOS_SIGN_IDENTITY:--}"
+          args=(--force --sign "$identity" --options runtime --entitlements packaging/macos/entitlements.plist)
+          if [ "$identity" = "-" ]; then
+            args+=(--timestamp=none)
+          else
+            args+=(--timestamp --keychain "$MACOS_KEYCHAIN")
+          fi
+          codesign "${args[@]}" "$dir/check"
+          codesign --verify --strict --verbose=2 "$dir/check"
+          codesign -d --verbose=2 "$dir/check" 2>&1 | grep -E '^(Identifier|Format|CodeDirectory|Authority|Timestamp|TeamIdentifier)[= ]' || true
+          "$dir/check"
+          echo "- Test program built for both targets, signed ($([ "$identity" = "-" ] && echo 'ad hoc' || echo 'Developer ID')) and verified" >>"$GITHUB_STEP_SUMMARY"
+          rm -rf "$dir"

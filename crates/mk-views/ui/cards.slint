@@ -1,0 +1,471 @@
+// The start screen's look (app-desktop.md revision 40): the top bar and the book
+// cards, in the family look of the owner's launcher — square corners, 1 px rules,
+// Archivo for book names, Inter for body text and Geist Mono for labels, chips and
+// buttons (bundled, SIL Open Font License 1.1; used on the start screen only).
+
+import "assets/fonts/Archivo-Variable.ttf";
+import "assets/fonts/Inter-Variable.ttf";
+import "assets/fonts/GeistMono-Variable.ttf";
+
+import { ItemVm, K, E, Act, Keys } from "vm.slint";
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { BookPictures } from "pictures.slint";
+import { Overlay } from "widgets.slint";
+
+// The launcher's colours: near-black page and #2A2C30 rules in dark, white page
+// and #D9D9D6 rules in light. Text colours keep at least 4.5:1 on the page.
+export global Launcher {
+    out property <color> page: Theme.dark ? #111214 : #ffffff;
+    out property <color> rule: Theme.dark ? #2A2C30 : #D9D9D6;
+    out property <color> text: Theme.dark ? #F2F2EE : #111214;
+    out property <color> text2: Theme.dark ? #A3A6AB : #575A60;
+    out property <color> faint: Theme.dark ? #8C8F95 : #6A6D73;
+    out property <color> blue: Theme.dark ? #78AEFF : #1D4ED8;
+    out property <color> red: Theme.dark ? #FF8077 : #B42318;
+    out property <color> primary: Theme.dark ? #F2F2EE : #111214;
+    out property <color> on-primary: Theme.dark ? #111214 : #ffffff;
+    out property <color> hover: Theme.dark ? #18191C : #F6F6F4;
+    out property <string> name-font: "Archivo";
+    out property <string> body-font: "Inter";
+    out property <string> mono-font: "Geist Mono";
+}
+
+// A small outlined chip (mono, uppercase, letter-spaced).
+component LChip inherits Rectangle {
+    in property <string> text;
+    in property <color> tint: Launcher.text2;
+    width: label.preferred-width + 12px;
+    height: 20px;
+    border-width: 1px;
+    border-color: tint.with-alpha(0.7);
+    label := Text {
+        text: root.text;
+        color: root.tint;
+        font-family: Launcher.mono-font;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+}
+
+// The top bar: the MoneyKeep mark and wordmark, a divider, the label, and the
+// theme button at the right. `items`: [the mark picture, the theme button].
+export component StartTopBar inherits Rectangle {
+    in property <[ItemVm]> items;
+    height: 56px;
+    background: Launcher.page;
+    HorizontalLayout {
+        padding-left: 20px;
+        spacing: 0px;
+        HorizontalLayout {
+            spacing: 8px;
+            padding-right: 20px;
+            alignment: start;
+            if items.length > 0 && items[0].has-picture: Rectangle {
+                width: 20px;
+                Image {
+                    width: 20px;
+                    height: 20px;
+                    source: items[0].picture;
+                    image-fit: contain;
+                    accessible-role: none;
+                }
+            }
+            Text {
+                text: "MoneyKeep";
+                font-family: Launcher.name-font;
+                font-weight: 700;
+                font-size: 15px;
+                color: Launcher.text;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle { width: 1px; background: Launcher.rule; }
+        HorizontalLayout {
+            padding-left: 16px;
+            Text {
+                text: "MONEYKEEP BOOKS";
+                font-family: Launcher.mono-font;
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 2px;
+                color: Launcher.text2;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        Rectangle { width: 1px; background: Launcher.rule; }
+        if items.length > 1: theme := Rectangle {
+            width: 56px;
+            background: tta.has-hover ? Launcher.hover : transparent;
+            accessible-role: button;
+            accessible-label: items[1].label;
+            accessible-id: "icon|" + items[1].id;
+            accessible-action-default => { Act.act(items[1].id, E.click, Theme.dark ? "dark" : "light"); }
+            Image {
+                width: 18px;
+                height: 18px;
+                source: Icons.get("theme");
+                colorize: Launcher.text;
+                accessible-role: none;
+            }
+            tta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Act.act(items[1].id, E.click, Theme.dark ? "dark" : "light"); }
+                changed has-hover => {
+                    if self.has-hover {
+                        Act.tip = items[1].desc;
+                        Act.tip-x = theme.absolute-position.x - 140px;
+                        Act.tip-y = theme.absolute-position.y + theme.height + 4px;
+                    } else if Act.tip == items[1].desc {
+                        Act.tip = "";
+                    }
+                }
+            }
+        }
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Launcher.rule;
+    }
+}
+
+// One book card (or the Create card, `item.value == "+"`); see `Kind::BookCard`.
+export component BookCard inherits Rectangle {
+    in property <ItemVm> item;
+    // Draw the right and bottom rules too (no card beside or below shares them).
+    in property <bool> edge-right: true;
+    in property <bool> edge-bottom: true;
+    property <bool> create: item.value == "+";
+    property <bool> failed: item.checked;
+    property <bool> live: item.id != "";
+    property <color> on-color: item.bold ? #111214 : #ffffff;
+    property <string> status: item.children[3].text;
+    property <string> description: item.children[4].text;
+    property <string> last-opened: item.children[5].text;
+    property <length> pad: 20px;
+    property <bool> hot: ta.has-hover || fs.has-focus;
+    background: Launcher.page;
+    clip: true;
+    accessible-role: button;
+    accessible-label: item.label != "" ? item.label : item.text;
+    accessible-description: item.desc;
+    accessible-id: "tile|" + item.id;
+    accessible-action-default => { if live { Act.act(item.id, E.click, ""); } }
+
+    ta := TouchArea {
+        mouse-cursor: live ? pointer : default;
+        clicked => {
+            if !live { return; }
+            fs.focus();
+            Act.act(item.id, E.click, "");
+        }
+        pointer-event(e) => {
+            if live && e.button == PointerEventButton.right && e.kind == PointerEventKind.up && item.options.length > 0 {
+                Overlay.show(item.id, item.options, false, 3, -1, root.absolute-position.x + self.mouse-x, root.absolute-position.y + self.mouse-y, 200px, "menuitem");
+            }
+        }
+        changed has-hover => {
+            if item.placeholder == "" || !live { return; }
+            if self.has-hover {
+                Act.tip = item.placeholder;
+                Act.tip-x = root.absolute-position.x + pad;
+                Act.tip-y = root.absolute-position.y + root.height - 8px;
+            } else if Act.tip == item.placeholder {
+                Act.tip = "";
+            }
+        }
+    }
+
+    // 1. The top strip: the number badge (or NEW BOOK) and SHOW IN FOLDER.
+    Rectangle {
+        x: 0;
+        y: 0;
+        height: 40px;
+        if !create: Rectangle {
+            x: pad;
+            width: badge.preferred-width + 12px;
+            height: 20px;
+            background: item.color;
+            badge := Text {
+                text: item.children[0].text;
+                color: on-color;
+                font-family: Launcher.mono-font;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                accessible-role: text;
+            }
+        }
+        if create: Text {
+            x: pad;
+            text: item.children[0].text;
+            color: Launcher.text2;
+            font-family: Launcher.mono-font;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            vertical-alignment: center;
+        }
+        if live && item.children[7].text != "": link := Rectangle {
+            x: parent.width - pad - self.width;
+            width: link-text.preferred-width;
+            accessible-role: button;
+            accessible-label: "Show in folder";
+            accessible-description: "Show " + item.text + " in its folder";
+            accessible-action-default => { Act.act(item.id, E.click, "folder"); }
+            link-text := Text {
+                text: item.children[7].text;
+                color: lta.has-hover ? Launcher.text : Launcher.text2;
+                font-family: Launcher.mono-font;
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 1.5px;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+            lta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Act.act(item.id, E.click, "folder"); }
+            }
+        }
+    }
+    Rectangle {
+        y: 40px;
+        height: 1px;
+        background: Launcher.rule;
+    }
+
+    // 2. The picture, the name with its currency chip, and the tagline.
+    pic := Rectangle {
+        x: pad;
+        y: 60px;
+        width: 56px;
+        height: 56px;
+        border-radius: 10px;
+        clip: true;
+        background: create ? transparent : item.color;
+        border-width: create ? 1px : 0px;
+        border-color: Launcher.rule;
+        opacity: failed ? 0.55 : 1;
+        if item.has-picture: Image {
+            width: 100%;
+            height: 100%;
+            source: item.picture;
+            image-fit: cover;
+            accessible-role: image;
+            accessible-label: "Book picture";
+        }
+        if !item.has-picture && BookPictures.has(item.icon): Image {
+            width: 100%;
+            height: 100%;
+            source: BookPictures.get(item.icon);
+            image-fit: cover;
+            accessible-role: image;
+            accessible-label: "Book picture";
+        }
+        if !item.has-picture && !BookPictures.has(item.icon) && item.icon != "": Image {
+            width: 60%;
+            height: 60%;
+            source: Icons.get(item.icon);
+            colorize: create ? Launcher.text : on-color;
+            image-fit: contain;
+            accessible-role: none;
+        }
+        if !item.has-picture && item.icon == "": Text {
+            text: item.value;
+            color: on-color;
+            font-family: Launcher.name-font;
+            font-size: 26px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            accessible-role: text;
+        }
+    }
+    property <length> text-x: pad + 56px + 16px;
+    property <length> text-w: root.width - text-x - pad;
+    HorizontalLayout {
+        x: text-x;
+        y: 61px;
+        width: text-w;
+        height: 30px;
+        spacing: 8px;
+        alignment: start;
+        name := Text {
+            text: item.text;
+            color: Launcher.text;
+            font-family: Launcher.name-font;
+            font-size: 22px;
+            font-weight: 600;
+            overflow: elide;
+            vertical-alignment: center;
+            max-width: text-w - (item.children[1].text != "" ? 52px : 0px);
+            opacity: failed ? 0.7 : 1;
+        }
+        if item.children[1].text != "": VerticalLayout {
+            alignment: center;
+            LChip { text: item.children[1].text; }
+        }
+    }
+    Text {
+        x: text-x;
+        y: 92px;
+        width: text-w;
+        text: item.children[2].text;
+        color: Launcher.text2;
+        font-family: Launcher.body-font;
+        font-size: 14px;
+        overflow: elide;
+    }
+
+    // 3–4. The status chip, the description and Last opened.
+    VerticalLayout {
+        x: pad;
+        y: 136px;
+        width: root.width - 2 * pad;
+        height: root.height - 136px - 74px;
+        spacing: 10px;
+        alignment: start;
+        if status != "": HorizontalLayout {
+            alignment: start;
+            LChip {
+                text: status;
+                tint: item.children[3].tone == 2 ? Launcher.red : Launcher.blue;
+                accessible-role: text;
+                accessible-label: item.children[3].tone == 2 ? status : "Password protected";
+            }
+        }
+        if description != "": Text {
+            text: description;
+            color: failed ? Launcher.red : Launcher.text;
+            font-family: Launcher.body-font;
+            font-size: 14px;
+            wrap: word-wrap;
+            overflow: elide;
+            // Up to three lines, then "…".
+            height: min(self.preferred-height, 52px);
+        }
+        if last-opened != "": Text {
+            text: last-opened;
+            color: Launcher.faint;
+            font-family: Launcher.body-font;
+            font-size: 13px;
+        }
+    }
+
+    // 5. OPEN (or REMOVE FROM LIST / CREATE) and the … menu.
+    property <length> button-y: root.height - pad - 34px;
+    property <bool> has-menu: live && !create && item.options.length > 0;
+    primary := Rectangle {
+        x: pad;
+        y: button-y;
+        width: root.width - 2 * pad - (has-menu ? 42px : 0px);
+        height: 34px;
+        background: failed ? transparent : pta.pressed ? Launcher.text2 : Launcher.primary;
+        border-width: failed ? 1px : 0px;
+        border-color: Launcher.red;
+        accessible-role: none;
+        Text {
+            text: item.children[6].text;
+            color: failed ? Launcher.red : Launcher.on-primary;
+            font-family: Launcher.mono-font;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            accessible-role: text;
+        }
+        pta := TouchArea {
+            mouse-cursor: live ? pointer : default;
+            clicked => {
+                if !live { return; }
+                Act.act(item.id, E.click, failed ? "remove" : create ? "" : "open");
+            }
+        }
+    }
+    // A failed book's REMOVE FROM LIST, for screen readers (the drawing above
+    // takes the clicks).
+    if failed && live: Rectangle {
+        x: primary.x;
+        y: primary.y;
+        width: primary.width;
+        height: primary.height;
+        accessible-role: button;
+        accessible-label: "Remove from list";
+        accessible-description: "Remove " + item.text + " from the list";
+        accessible-action-default => { Act.act(item.id, E.click, "remove"); }
+    }
+    if has-menu: more := Rectangle {
+        x: root.width - pad - 34px;
+        y: button-y;
+        width: 34px;
+        height: 34px;
+        border-width: 1px;
+        border-color: Launcher.rule;
+        background: mta.has-hover ? Launcher.hover : transparent;
+        accessible-role: button;
+        accessible-label: "More for " + item.text;
+        accessible-action-default => {
+            Overlay.show(item.id, item.options, false, 3, -1, more.absolute-position.x, more.absolute-position.y + 36px, 200px, "menuitem");
+        }
+        Text {
+            text: "…";
+            color: Launcher.text;
+            font-family: Launcher.mono-font;
+            font-size: 14px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+        mta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                Overlay.show(item.id, item.options, false, 3, -1, more.absolute-position.x, more.absolute-position.y + 36px, 200px, "menuitem");
+            }
+        }
+    }
+
+    // The rules: top and left always, right and bottom where no card shares them;
+    // the book's colour while the card is hovered or focused.
+    property <color> rule: hot && live ? (create ? Launcher.text2 : item.color) : Launcher.rule;
+    Rectangle { x: 0; y: 0; width: root.width; height: 1px; background: rule; }
+    Rectangle { x: 0; y: 0; width: 1px; height: root.height; background: rule; }
+    if edge-right || (hot && live): Rectangle { x: root.width - 1px; y: 0; width: 1px; height: root.height; background: rule; }
+    if edge-bottom || (hot && live): Rectangle { x: 0; y: root.height - 1px; width: root.width; height: 1px; background: rule; }
+
+    fs := FocusScope {
+        // Keys only: a click is the touch area's (revision 32).
+        focus-on-click: false;
+        enabled: live;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { Act.act(item.id, E.click, ""); return accept; }
+            if e.text == Key.Menu && item.options.length > 0 {
+                Overlay.show(item.id, item.options, false, 3, -1, root.absolute-position.x + pad, root.absolute-position.y + button-y, 200px, "menuitem");
+                return accept;
+            }
+            if e.text == Key.LeftArrow || e.text == Key.RightArrow || e.text == Key.UpArrow || e.text == Key.DownArrow {
+                if Act.key(item.id + "\n" + Keys.name(e)) { return accept; }
+            }
+            reject
+        }
+        changed has-focus => { Act.act(item.id, self.has-focus ? E.focus : E.blur, ""); }
+    }
+    property <int> model-focus: item.focus;
+    changed model-focus => { if model-focus > 0 { fs.focus(); } }
+    if fs.has-focus: Rectangle {
+        x: 2px;
+        y: 2px;
+        width: root.width - 4px;
+        height: root.height - 4px;
+        border-width: 2px;
+        border-color: Theme.focus;
+    }
+}

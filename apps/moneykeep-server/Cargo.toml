@@ -1,0 +1,80 @@
+[package]
+name = "moneykeep-server"
+description = "MoneyKeep (Apps for Financial Management): phone capture server: an inbox of phone submissions behind Cloudflare Tunnel and Access (mobile-capture.md). Never opens a book."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "moneykeep-server"
+path = "src/main.rs"
+
+[dependencies]
+mk-capture-api.workspace = true
+# Product names, old and new (the migration in branding.md step 6).
+mk-core.workspace = true
+# Receipt pictures: safe decoding, upright turning, metadata removal and re-encoding
+# (pure code, no IO).
+mk-import.workspace = true
+# upgrade-resilience-1 U1.6: the inbox key sealed by Windows (DPAPI) without PowerShell.
+mk-dpapi.workspace = true
+base64.workspace = true
+chacha20poly1305.workspace = true
+clap.workspace = true
+getrandom.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+# security-review-1 A1: the user's application data folder (the data folder's place
+# before it moved, and on Linux and macOS), as the desktop computes it.
+directories.workspace = true
+# security-review-1 A1: the service's own security identifier (S-1-5-80-…) is the
+# SHA-1 of its name (Microsoft: service SIDs).
+sha1 = { version = "0.10", default-features = false }
+toml.workspace = true
+zeroize.workspace = true
+# The phone app's files with Brotli and gzip copies (mobile-capture.md revision 18).
+brotli.workspace = true
+flate2.workspace = true
+# HTTP/1.1 server on the loopback address (TLS is Cloudflare's job).
+tiny_http = { version = "0.12", default-features = false }
+# RS256 signature checks of Cloudflare Access tokens.
+ring = { version = "0.17", default-features = false }
+# Fetching the Access certificates over HTTPS (same stack as mk-connect).
+ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-native-certs = "0.8"
+# Wi-Fi capture (mobile-capture.md revision 10): the local certificate authority and
+# the server certificate (MIT OR Apache-2.0; signs with the `ring` already used).
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
+# The Capture PIN, stored only as an Argon2id hash (as book passwords are derived).
+argon2.workspace = true
+time.workspace = true
+# The inbox key in the operating system's credential store when there is one.
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
+
+# Running as a Windows service and installing it (mobile-capture.md revision 2 B5).
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8"
+
+# build.rs makes the Brotli and gzip copies of the embedded phone app.
+[build-dependencies]
+brotli.workspace = true
+flate2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+# Test 67: reading the certificates' extensions back.
+x509-parser = { version = "0.18", default-features = false }
+mk-import.workspace = true
+
+[lints]
+workspace = true

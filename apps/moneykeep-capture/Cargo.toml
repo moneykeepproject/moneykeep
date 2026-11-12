@@ -1,0 +1,71 @@
+[package]
+name = "moneykeep-capture"
+description = "MoneyKeep (Apps for Financial Management): phone capture client: a Slint web app (wasm32) for photographing receipts and entering expenses on a phone (mobile-capture.md)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "moneykeep-capture"
+path = "src/main.rs"
+
+[dependencies]
+mk-capture-api.workspace = true
+base64.workspace = true
+# The screens: built with mk-ui's page builder, drawn by mk-views' PhoneWindow.
+mk-ui.workspace = true
+mk-views.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# Browser bindings, optional on native builds: the `web-check` feature compiles the
+# browser layer natively for type checking when the wasm32 target is unavailable.
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "AbortController", "AbortSignal", "Blob", "BlobPropertyBag", "CanvasRenderingContext2d", "Crypto", "Document", "Element", "Event",
+    "EventTarget", "File", "FileList", "Headers", "HtmlCanvasElement", "HtmlElement",
+    "History", "HtmlImageElement", "HtmlInputElement", "IdbDatabase", "IdbFactory", "IdbObjectStore",
+    "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode",
+    "IdbVersionChangeEvent", "ImageData", "Location", "Navigator", "Request", "RequestInit", "RequestRedirect", "ResponseType", "Storage", "StorageManager",
+    "Response", "Url", "Window",
+] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "AbortController", "AbortSignal", "Blob", "BlobPropertyBag", "CanvasRenderingContext2d", "Crypto", "Document", "Element", "Event",
+    "EventTarget", "File", "FileList", "Headers", "HtmlCanvasElement", "HtmlElement",
+    "History", "HtmlImageElement", "HtmlInputElement", "IdbDatabase", "IdbFactory", "IdbObjectStore",
+    "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode",
+    "IdbVersionChangeEvent", "ImageData", "Location", "Navigator", "Request", "RequestInit", "RequestRedirect", "ResponseType", "Storage", "StorageManager",
+    "Response", "Url", "Window",
+] }
+# uuid needs a source of randomness on wasm32-unknown-unknown or it refuses to
+# compile (its rng.rs compile_error). It arrives through mk-core (ids: features v7,
+# hence rng) and Slint's accessibility feature (accesskit). The `js` feature, unified
+# into that one uuid build, takes random bytes from the browser's WebCrypto
+# (crypto.getRandomValues) and the v7 timestamp from Date.now() via wasm-bindgen,
+# instead of std's clock, which panics in the browser. Not used directly here.
+uuid = { version = "1", default-features = false, features = ["js"] }
+
+[dev-dependencies]
+# mobile-capture.md AT40, 42–43: the phone window driven on Slint's testing backend.
+mk-views = { workspace = true, features = ["testing"] }
+# The review screenshots (examples/phone_screens.rs).
+png.workspace = true
+
+[features]
+web-check = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
+
+[lints]
+workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "mk-mcp"
+description = "MoneyKeep MCP server: exposes the command registry as MCP tools over stdio."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+mk-commands.workspace = true
+mk-store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+mk-core.workspace = true
+jsonschema = { version = "0.59", default-features = false }
+tempfile.workspace = true
+
+[lints]
+workspace = true

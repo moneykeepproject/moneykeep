@@ -1,0 +1,221 @@
+// The floating calculator (app-desktop.md revision 25): title bar (drag to move
+// unless pinned), pin and close, the display (takes typed keys) and the keypad.
+// Every key reports to the controller, which does the arithmetic.
+
+import { Button } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Act, E, Keys } from "vm.slint";
+import { Icon, IconButton } from "widgets.slint";
+
+export struct CalcVm {
+    display: string,
+    expression: string,
+    error: bool,
+    x: length,
+    y: length,
+    pinned: bool,
+    focus: int,
+}
+
+component CalcKey inherits Rectangle {
+    in property <string> name;
+    in property <string> face;
+    in property <string> icon;
+    in property <bool> primary;
+    callback pressed();
+    height: 40px;
+    border-radius: Theme.radius-small;
+    background: primary ? (ta.pressed ? Theme.accent.darker(0.25) : ta.has-hover ? Theme.accent.darker(0.12) : Theme.accent)
+        : ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : Theme.surface-alt;
+    border-width: primary ? 0px : 1px;
+    border-color: Theme.border;
+    animate background { duration: Theme.quick; }
+    accessible-role: button;
+    accessible-label: name;
+    accessible-id: "button|calc/" + name;
+    accessible-action-default => { pressed(); }
+    if face != "": Text {
+        text: face;
+        font-size: 17px;
+        font-family: Theme.number-font;
+        color: primary ? Theme.on-accent : Theme.text;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        accessible-role: none;
+    }
+    if icon != "": Icon {
+        name: icon;
+        tint: primary ? Theme.on-accent : Theme.text;
+        width: 18px;
+        height: 18px;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { pressed(); }
+    }
+}
+
+export component CalculatorView inherits Rectangle {
+    in property <CalcVm> calc;
+    in property <length> area-width;
+    in property <length> area-height;
+    property <int> focus-serial: calc.focus;
+    x: calc.x;
+    y: calc.y;
+    width: 248px;
+    height: 404px;
+    border-radius: Theme.radius;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    drop-shadow-blur: 20px;
+    drop-shadow-offset-y: 4px;
+    drop-shadow-color: Theme.shadow;
+    // Clicks on the window do not reach the page beneath.
+    TouchArea {}
+    VerticalLayout {
+        padding: Theme.s3;
+        spacing: Theme.s2;
+        HorizontalLayout {
+            spacing: Theme.s1;
+            height: 28px;
+            bar := Rectangle {
+                horizontal-stretch: 1;
+                accessible-role: text;
+                accessible-label: "Calculator";
+                accessible-id: "titlebar|calc";
+                Text {
+                    x: 0;
+                    text: "Calculator";
+                    font-weight: 600;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                    height: parent.height;
+                    accessible-role: none;
+                }
+                bar-ta := TouchArea {
+                    mouse-cursor: calc.pinned ? default : (self.pressed ? grabbing : grab);
+                    // The window moves with the pointer, so the distance from the
+                    // press point is the step since the last move.
+                    moved => {
+                        if self.pressed && !calc.pinned {
+                            Act.act("calc/move", E.key, Math.round((calc.x + self.mouse-x - self.pressed-x) / 1px) + "," + Math.round((calc.y + self.mouse-y - self.pressed-y) / 1px));
+                        }
+                    }
+                }
+            }
+            IconButton {
+                icon: calc.pinned ? "pin-filled" : "pin";
+                name: "Pin in place";
+                tip: calc.pinned ? "Unpin" : "Pin in place";
+                checkable: true;
+                checked: calc.pinned;
+                aid: "toggle|calc/pin";
+                size: 28px;
+                clicked => { Act.act("calc/pin", E.click, ""); }
+            }
+            IconButton {
+                icon: "close";
+                name: "Close calculator";
+                tip: "Close";
+                aid: "button|calc/close";
+                size: 28px;
+                clicked => { Act.act("calc/close", E.click, ""); }
+            }
+        }
+        display := Rectangle {
+            height: 64px;
+            border-radius: Theme.radius-small;
+            background: Theme.page;
+            border-width: fs.has-focus ? 2px : 1px;
+            border-color: fs.has-focus ? Theme.focus : Theme.border;
+            accessible-role: text;
+            accessible-label: "Result " + calc.display;
+            accessible-description: calc.expression != "" ? "Pending " + calc.expression : "";
+            accessible-id: "label|calc/display";
+            fs := FocusScope {
+                // Keys only: a click is the touch area's (a scope that took the
+                // press for focus would swallow the first click; revision 32).
+                focus-on-click: false;
+                key-pressed(e) => {
+                    if Act.key("calc/display\n" + Keys.name(e)) { return accept; }
+                    reject
+                }
+            }
+            TouchArea { clicked => { fs.focus(); } }
+            VerticalLayout {
+                padding-left: Theme.s2;
+                padding-right: Theme.s2;
+                padding-top: 4px;
+                padding-bottom: 4px;
+                Text {
+                    text: calc.expression;
+                    horizontal-alignment: right;
+                    color: Theme.text-secondary;
+                    font-family: Theme.number-font;
+                    font-size: Theme.caption-size;
+                    accessible-role: none;
+                }
+                Text {
+                    text: calc.display;
+                    horizontal-alignment: right;
+                    vertical-alignment: bottom;
+                    vertical-stretch: 1;
+                    overflow: elide;
+                    color: calc.error ? Theme.tone(6) : Theme.text;
+                    font-family: calc.error ? "" : Theme.number-font;
+                    font-size: calc.error ? 16px : 26px;
+                    accessible-role: none;
+                }
+            }
+        }
+        GridLayout {
+            spacing: 4px;
+            Row {
+                CalcKey { name: "clear"; face: "C"; pressed => { Act.act("calc/clear", E.click, ""); } }
+                CalcKey { name: "delete last digit"; icon: "backspace"; pressed => { Act.act("calc/delete last digit", E.click, ""); } }
+                CalcKey { name: "change sign"; icon: "plus-minus"; pressed => { Act.act("calc/change sign", E.click, ""); } }
+                CalcKey { name: "percent"; face: "%"; pressed => { Act.act("calc/percent", E.click, ""); } }
+            }
+            Row {
+                CalcKey { name: "seven"; face: "7"; pressed => { Act.act("calc/seven", E.click, ""); } }
+                CalcKey { name: "eight"; face: "8"; pressed => { Act.act("calc/eight", E.click, ""); } }
+                CalcKey { name: "nine"; face: "9"; pressed => { Act.act("calc/nine", E.click, ""); } }
+                CalcKey { name: "divide"; icon: "divide"; pressed => { Act.act("calc/divide", E.click, ""); } }
+            }
+            Row {
+                CalcKey { name: "four"; face: "4"; pressed => { Act.act("calc/four", E.click, ""); } }
+                CalcKey { name: "five"; face: "5"; pressed => { Act.act("calc/five", E.click, ""); } }
+                CalcKey { name: "six"; face: "6"; pressed => { Act.act("calc/six", E.click, ""); } }
+                CalcKey { name: "multiply"; icon: "multiply"; pressed => { Act.act("calc/multiply", E.click, ""); } }
+            }
+            Row {
+                CalcKey { name: "one"; face: "1"; pressed => { Act.act("calc/one", E.click, ""); } }
+                CalcKey { name: "two"; face: "2"; pressed => { Act.act("calc/two", E.click, ""); } }
+                CalcKey { name: "three"; face: "3"; pressed => { Act.act("calc/three", E.click, ""); } }
+                CalcKey { name: "minus"; icon: "minus"; pressed => { Act.act("calc/minus", E.click, ""); } }
+            }
+            Row {
+                CalcKey { name: "zero"; face: "0"; pressed => { Act.act("calc/zero", E.click, ""); } }
+                CalcKey { name: "point"; face: "."; pressed => { Act.act("calc/point", E.click, ""); } }
+                CalcKey { name: "equals"; face: "="; primary: true; pressed => { Act.act("calc/equals", E.click, ""); } }
+                CalcKey { name: "plus"; icon: "plus"; pressed => { Act.act("calc/plus", E.click, ""); } }
+            }
+        }
+        Button {
+            text: "Copy";
+            accessible-label: "Copy";
+            accessible-description: "Copy the result";
+            accessible-id: "button|calc/copy";
+            clicked => { Act.act("calc/copy", E.click, ""); }
+        }
+    }
+    changed focus-serial => { fs.focus(); }
+    init => { if calc.focus > 0 { pending = true; } }
+    property <bool> pending;
+    Timer {
+        interval: 1ms;
+        running: pending;
+        triggered => { pending = false; fs.focus(); }
+    }
+}

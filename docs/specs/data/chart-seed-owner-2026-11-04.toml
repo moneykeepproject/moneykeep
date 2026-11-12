@@ -1,0 +1,3810 @@
+# MoneyKeep — EZ Chart of Accounts (default seed for new books)
+#
+# Clean-room note: built from general double-entry conventions (1xxx assets,
+# 2xxx liabilities, 3xxx equity, 4xxx income, 5xxx cost of sales, 6xxx-8xxx
+# expenses). Not derived from any other product's default list.
+#
+# How it's used:
+#   * The New Books wizard shows the [[preset]] entries. A preset is a list of
+#     account packs.
+#   * When a module is switched on in Settings, its pack in [module_packs] is
+#     merged in (accounts that already exist are skipped).
+#   * Codes must be unique within any preset + all module packs. Packs that are
+#     never combined (personal vs. nonprofit) may reuse codes.
+#   * `system = true` accounts are created regardless and can be renamed but
+#     not deleted (the ledger posts to them automatically).
+#   * `contra = true` flips the normal balance (e.g. accumulated depreciation).
+
+schema = 1
+
+# ---------------------------------------------------------------- presets ---
+
+[[preset]]
+id = "personal"
+name = "Personal & Household"
+blurb = "Bank accounts, cards, loans, everyday spending and investments."
+description = """
+Best for: tracking your own and your household's money — paychecks, bills, credit cards, loans and savings — when you don't need your books laid out like a tax return.
+
+What you get:
+• Bank, savings, cash and credit card accounts, plus your home, vehicles, mortgage and auto loan.
+• Income for wages, bonuses, gifts, refunds and other income.
+• Spending grouped the way people think about it: Housing, Utilities, Food, Transportation, Health, Personal & Lifestyle, Family, Giving, Financial and Taxes, each with a few common categories underneath.
+• Investment accounts for a brokerage, CDs and retirement, with dividends, gains and fees.
+
+Good to know: categories are organized for budgeting, not tax filing. If you itemize deductions or want tax-time totals to line up with your return, choose "Personal — Form 1040" instead. If you also earn money on the side, choose "Personal + Side Business".
+"""
+packs = ["core", "personal", "investments"]
+
+[[preset]]
+id = "sole_proprietor"
+name = "Personal + Side Business"
+blurb = "Household books plus a simple business section (Schedule C-style)."
+description = """
+Best for: one person or household that also runs a small side business (freelancing, consulting, a shop or craft business) and wants both in one set of books.
+
+What you get:
+• Everything in "Personal & Household".
+• A separate business section: sales and service revenue, cost of goods sold, about 20 common business expense categories, equipment and depreciation, and a business loan.
+• Owner's Capital and Owner's Draws to track money moving between you and the business.
+
+Good to know: business accounts are numbered 4500–7999 so they never mix with household categories. The business categories are general-purpose. If you want every business account tied to a specific Schedule C line, choose "Sole Proprietor — Schedule C" (it can be combined with "Personal — Form 1040").
+"""
+packs = ["core", "personal", "business", "investments"]
+
+[[preset]]
+id = "personal_1040"
+name = "Personal — Form 1040"
+blurb = "Household books grouped by Form 1040 lines and schedules, so tax time is a report."
+description = """
+Best for: individuals and families who want tax time to be a report, not a project. Accounts are grouped by where each amount lands on IRS Form 1040 and its schedules (tax year 2025).
+
+What you get:
+• Form 1040 income: W-2 wages, tips, taxable and tax-exempt interest, dividends, IRA and pension distributions, Social Security, capital gains.
+• Schedule 1: taxable state refunds, unemployment, gambling and other income, plus adjustments such as educator expenses and student loan interest.
+• Schedule 1-A (new for 2025–2028): qualified car loan interest.
+• Schedule A itemized deductions: medical, state and local taxes, real estate tax, mortgage interest and points, investment interest, cash and non-cash donations.
+• Federal tax payments: W-2 and 1099 withholding and estimated payments, to check against your return.
+• Credit-eligible costs: child and dependent care, tuition.
+• Everyday spending that isn't deductible, kept in one group.
+• Brokerage, CD, retirement and HSA accounts.
+
+Good to know: each account carries a tax-line tag (for example "Sch A L5b"). Tags are reporting hints, not tax advice, and IRS line numbers can change each year. Business or rental income belongs in "Sole Proprietor — Schedule C" or a business preset.
+"""
+packs = ["core", "form1040", "investments"]
+tax_year = 2025
+
+[[preset]]
+id = "schedule_c"
+name = "Sole Proprietor — Schedule C"
+blurb = "Business books grouped by Schedule C lines; net profit flows to Form 1040."
+description = """
+Best for: sole proprietors and single-member LLCs that file Schedule C with their personal return.
+
+What you get:
+• Part I income: gross receipts, returns and allowances, other business income.
+• Part III cost of goods sold: purchases, labor, materials, other costs, plus an Inventory account for year-end counts.
+• Part II expenses with one account per line: advertising, car and truck, commissions, contract labor, depreciation, insurance, interest, legal and professional, office, rent, repairs, supplies, taxes and licenses, travel, meals, utilities, wages.
+• Part V other expenses (software, processing fees, dues, training, postage) that roll up to line 27b, plus business use of home (line 30).
+• Business checking, equipment, loans, Owner's Capital and Owner's Draws.
+
+Good to know: expense account numbers follow the Schedule C line number (7008 = line 8). Your own self-employment tax, health insurance and retirement contributions are personal, so pay them from Owner's Draws. Codes don't overlap "Personal — Form 1040", so both can live in one book.
+"""
+packs = ["core", "schedc"]
+tax_year = 2025
+
+[[preset]]
+id = "s_corp"
+name = "S Corporation — Form 1120-S"
+blurb = "Corporate books grouped by Form 1120-S page 1, Schedule K and Schedule L."
+description = """
+Best for: corporations (often LLCs) that have elected S corporation status and file Form 1120-S. Typical when the owner takes a salary plus distributions.
+
+What you get:
+• Page 1 income and deductions, including Officer Compensation (line 7) kept separate from employee wages, and an Other Deductions group for line 20.
+• Schedule K items that pass straight to shareholders: interest, dividends, capital gains, tax-exempt interest, Section 179, charitable contributions, nondeductible expenses and distributions.
+• A full Schedule L balance sheet: inventory, fixed assets and depreciation, loans to and from shareholders, short- and long-term notes, Capital Stock, Paid-In Capital and Retained Earnings.
+• Cost of goods sold through Form 1125-A.
+
+Good to know: owner pay must be reasonable W-2 wages before taking distributions. Distributions are equity, not an expense. Health insurance for shareholders owning more than 2% belongs in their W-2 pay. Opening Balance Equity should be cleared to zero before Schedule L is prepared.
+"""
+packs = ["core", "f1120s"]
+tax_year = 2025
+# Re-tag shared core/module accounts for this return ("" = no tax line).
+tax_overrides = { "1000" = "Sch L L1", "1050" = "Sch L L1", "1090" = "Sch L L1", "1250" = "Sch L L1", "1200" = "Sch L L2a", "2000" = "Sch L L16", "2100" = "Sch L L18", "2250" = "Sch L L18", "2270" = "Sch L L18", "4700" = "Sch K L4" }
+
+[[preset]]
+id = "partnership"
+name = "Partnership / Multi-Member LLC — Form 1065"
+blurb = "Partnership books grouped by Form 1065 page 1, Schedule K and Schedule L, with per-partner capital."
+description = """
+Best for: partnerships and multi-member LLCs that file Form 1065 and issue K-1s to each partner.
+
+What you get:
+• Page 1 income and deductions, including Guaranteed Payments to Partners (line 10) kept separate from employee wages, and an Other Deductions group for line 21 (advertising goes here — Form 1065 has no advertising line).
+• Schedule K items: interest, dividends, capital gains, tax-exempt interest, Section 179, charitable contributions, nondeductible expenses.
+• Separate Capital and Distributions accounts for each partner (two placeholders to rename; add a pair per extra partner).
+• A full Schedule L balance sheet, including loans to and from partners.
+• Cost of goods sold through Form 1125-A.
+
+Good to know: there is no Retained Earnings — each year's profit is split into the partners' capital accounts under your partnership agreement. Partners aren't employees, so they're paid through guaranteed payments or distributions, not wages.
+"""
+packs = ["core", "f1065"]
+tax_year = 2025
+tax_overrides = { "1000" = "Sch L L1", "1050" = "Sch L L1", "1090" = "Sch L L1", "1250" = "Sch L L1", "1200" = "Sch L L2a", "2000" = "Sch L L15", "2100" = "Sch L L17", "2250" = "Sch L L17", "2270" = "Sch L L17", "4700" = "Sch K L5" }
+
+[[preset]]
+id = "c_corp"
+name = "C Corporation — Form 1120"
+blurb = "Corporate books grouped by Form 1120 page 1, Schedule L, and Schedules M-1/M-2."
+description = """
+Best for: regular (C) corporations that file Form 1120 and pay their own federal income tax.
+
+What you get:
+• Page 1 income: receipts, dividends, interest, rents, royalties, capital gains and other income.
+• Page 1 deductions with one account per line, including officer compensation, charitable contributions (deductible here, unlike pass-through entities), depreciation and Section 179, advertising and an Other Deductions group for line 26.
+• Federal Income Tax Expense and Income Taxes Payable, so the books show after-tax profit.
+• Schedule M-1 items that never reach the return (federal tax, fines and penalties, tax-exempt interest).
+• Schedule L balance sheet with Common Stock, Paid-In Capital, Retained Earnings, Treasury Stock and Dividends Paid (Schedule M-2).
+
+Good to know: dividends are paid from after-tax profit and aren't deductible. If your company has an S election, choose "S Corporation — Form 1120-S" instead.
+"""
+packs = ["core", "f1120"]
+tax_year = 2025
+tax_overrides = { "1000" = "Sch L L1", "1050" = "Sch L L1", "1090" = "Sch L L1", "1250" = "Sch L L1", "1200" = "Sch L L2a", "2000" = "Sch L L16", "2100" = "Sch L L18", "2250" = "Sch L L18", "2270" = "Sch L L18", "4700" = "1120 L5" }
+
+[[preset]]
+id = "small_business"
+name = "Small Business"
+blurb = "Business-only books with owner equity and cost of sales."
+description = """
+Best for: a business that wants a clean, general-purpose chart of accounts without tying it to a particular tax form — or isn't sure yet how it will file.
+
+What you get:
+• Bank, cash and credit card accounts, prepaid expenses, equipment and depreciation, payroll liabilities and a business loan.
+• Owner's Capital, Owner's Draws and Retained Earnings.
+• Sales, service revenue and discounts given.
+• Cost of goods sold: materials, subcontractors, shipping.
+• About 20 common operating expenses, from advertising to wages and home office.
+
+Good to know: this is the easiest list to start with and rename. Once you know your tax form, the Schedule C, 1120-S, 1065 or 1120 presets give you accounts already matched to its lines. Turn on Invoicing or Bills in Settings to add receivables and payables.
+"""
+packs = ["core", "business"]
+
+[[preset]]
+id = "nonprofit"
+name = "Nonprofit / Church"
+blurb = "Contributions, restricted and unrestricted net assets, ministry/program costs."
+description = """
+Best for: churches, ministries and other nonprofits that track donations, restricted gifts and program spending.
+
+What you get:
+• Net Assets Without Donor Restrictions and Net Assets With Donor Restrictions, instead of owner's equity.
+• Contribution income: general giving (tithes and offerings), designated or restricted gifts, grants, in-kind gifts, program and event revenue, facility rental.
+• Expenses grouped as Personnel (including housing allowance), Facilities, Programs & Ministry (supplies, outreach and benevolence, missions, events) and Administration.
+• Buildings and equipment with depreciation, and payroll liabilities.
+
+Good to know: track program, management and fundraising costs with a tag on each transaction rather than separate accounts. That keeps the list short while still supporting functional-expense reports.
+"""
+packs = ["core", "nonprofit"]
+
+[[preset]]
+id = "minimal"
+name = "Starter Minimum"
+blurb = "Only the required accounts. Build your own list."
+description = """
+Best for: experienced bookkeepers or anyone who wants to build their own chart of accounts from scratch.
+
+What you get: only the accounts MoneyKeep needs to work —
+• Checking, Savings, Cash on Hand and Credit Card.
+• Opening Balance Equity, for starting balances.
+• Interest Income.
+• Uncategorized Income and Uncategorized Expense, where imports land when no rule matches.
+
+Good to know: modules you turn on later (Invoicing, Bills, Expense Manager, Investments) still add their own accounts. You can import or add everything else yourself.
+"""
+packs = ["core"]
+
+# Module id (Settings > Modules) -> pack merged in when the module is on.
+[module_packs]
+invoicing = "sales"        # estimates, invoices, customer payments
+bills     = "purchasing"   # vendor bills
+expenses  = "expenses"     # expense manager / receipt capture
+investments = "investments"
+
+# =================================================================== core ===
+# Every book gets these.
+
+[[account]]
+code = "1000"
+name = "Checking"
+type = "asset"
+kind = "bank"
+pack = "core"
+
+[[account]]
+code = "1050"
+name = "Savings"
+type = "asset"
+kind = "bank"
+pack = "core"
+
+[[account]]
+code = "1090"
+name = "Cash on Hand"
+type = "asset"
+kind = "cash"
+pack = "core"
+
+[[account]]
+code = "2100"
+name = "Credit Card"
+type = "liability"
+kind = "credit_card"
+pack = "core"
+
+[[account]]
+code = "3900"
+name = "Opening Balance Equity"
+type = "equity"
+kind = "equity"
+pack = "core"
+system = true
+note = "Offset for starting balances entered in the setup wizard."
+
+[[account]]
+code = "4700"
+name = "Interest Income"
+type = "income"
+kind = "income"
+pack = "core"
+tax_line = "1040 L2b"
+
+[[account]]
+code = "4999"
+name = "Uncategorized Income"
+type = "income"
+kind = "income"
+pack = "core"
+system = true
+note = "Imports land here when no rule matches."
+
+[[account]]
+code = "8999"
+name = "Uncategorized Expense"
+type = "expense"
+kind = "expense"
+pack = "core"
+system = true
+note = "Imports land here when no rule matches."
+
+# =============================================================== personal ===
+
+[[account]]
+code = "1500"
+name = "Home"
+type = "asset"
+kind = "fixed_asset"
+pack = "personal"
+
+[[account]]
+code = "1510"
+name = "Vehicles"
+type = "asset"
+kind = "fixed_asset"
+pack = "personal"
+
+[[account]]
+code = "2300"
+name = "Mortgage"
+type = "liability"
+kind = "loan"
+pack = "personal"
+
+[[account]]
+code = "2400"
+name = "Auto Loan"
+type = "liability"
+kind = "loan"
+pack = "personal"
+
+# --- personal income ---
+[[account]]
+code = "4000"
+name = "Wages & Salary"
+type = "income"
+kind = "income"
+pack = "personal"
+
+[[account]]
+code = "4010"
+name = "Bonus & Commission"
+type = "income"
+kind = "income"
+pack = "personal"
+
+[[account]]
+code = "4200"
+name = "Gifts Received"
+type = "income"
+kind = "income"
+pack = "personal"
+
+[[account]]
+code = "4300"
+name = "Refunds & Reimbursements"
+type = "income"
+kind = "income"
+pack = "personal"
+
+[[account]]
+code = "4400"
+name = "Other Income"
+type = "income"
+kind = "income"
+pack = "personal"
+
+# --- personal expenses (6000-6999), grouped by parent ---
+[[account]]
+code = "6000"
+name = "Housing"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6010"
+name = "Rent"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6000"
+
+[[account]]
+code = "6020"
+name = "Mortgage Interest"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6000"
+
+[[account]]
+code = "6030"
+name = "Property Tax"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6000"
+
+[[account]]
+code = "6040"
+name = "Homeowner / Renter Insurance"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6000"
+
+[[account]]
+code = "6050"
+name = "HOA Dues"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6000"
+
+[[account]]
+code = "6060"
+name = "Home Maintenance"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6000"
+
+[[account]]
+code = "6100"
+name = "Utilities"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6110"
+name = "Electric"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6100"
+
+[[account]]
+code = "6120"
+name = "Gas & Heating"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6100"
+
+[[account]]
+code = "6130"
+name = "Water, Sewer & Trash"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6100"
+
+[[account]]
+code = "6140"
+name = "Internet"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6100"
+
+[[account]]
+code = "6150"
+name = "Phone"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6100"
+
+[[account]]
+code = "6200"
+name = "Food"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6210"
+name = "Groceries"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6200"
+
+[[account]]
+code = "6220"
+name = "Dining Out"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6200"
+
+[[account]]
+code = "6300"
+name = "Transportation"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6310"
+name = "Fuel & Charging"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6300"
+
+[[account]]
+code = "6320"
+name = "Auto Insurance"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6300"
+
+[[account]]
+code = "6330"
+name = "Auto Maintenance"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6300"
+
+[[account]]
+code = "6340"
+name = "Parking, Tolls & Transit"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6300"
+
+[[account]]
+code = "6400"
+name = "Health"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6410"
+name = "Health Insurance"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6400"
+
+[[account]]
+code = "6420"
+name = "Medical & Dental"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6400"
+
+[[account]]
+code = "6430"
+name = "Pharmacy"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6400"
+
+[[account]]
+code = "6500"
+name = "Personal & Lifestyle"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6510"
+name = "Clothing"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6500"
+
+[[account]]
+code = "6520"
+name = "Personal Care"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6500"
+
+[[account]]
+code = "6530"
+name = "Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6500"
+
+[[account]]
+code = "6540"
+name = "Entertainment & Hobbies"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6500"
+
+[[account]]
+code = "6550"
+name = "Travel & Vacation"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6500"
+
+[[account]]
+code = "6600"
+name = "Family"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6610"
+name = "Childcare"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6600"
+
+[[account]]
+code = "6620"
+name = "Education"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6600"
+
+[[account]]
+code = "6630"
+name = "Pets"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6600"
+
+[[account]]
+code = "6700"
+name = "Giving"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6710"
+name = "Charitable Donations"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6700"
+
+[[account]]
+code = "6720"
+name = "Gifts Given"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6700"
+
+[[account]]
+code = "6800"
+name = "Financial"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6810"
+name = "Bank Fees"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6800"
+
+[[account]]
+code = "6820"
+name = "Interest Paid"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6800"
+
+[[account]]
+code = "6830"
+name = "Life Insurance"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6800"
+
+[[account]]
+code = "6900"
+name = "Taxes"
+type = "expense"
+kind = "expense"
+pack = "personal"
+header = true
+
+[[account]]
+code = "6910"
+name = "Federal Income Tax"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6900"
+
+[[account]]
+code = "6920"
+name = "State & Local Income Tax"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6900"
+
+[[account]]
+code = "6930"
+name = "Social Security & Medicare"
+type = "expense"
+kind = "expense"
+pack = "personal"
+parent = "6900"
+
+# =============================================================== business ===
+
+[[account]]
+code = "1300"
+name = "Prepaid Expenses"
+type = "asset"
+kind = "other_asset"
+pack = "business"
+
+[[account]]
+code = "1600"
+name = "Equipment"
+type = "asset"
+kind = "fixed_asset"
+pack = "business"
+
+[[account]]
+code = "1650"
+name = "Accumulated Depreciation"
+type = "asset"
+kind = "fixed_asset"
+pack = "business"
+contra = true
+
+[[account]]
+code = "2200"
+name = "Payroll Liabilities"
+type = "liability"
+kind = "other_liability"
+pack = "business"
+
+[[account]]
+code = "2600"
+name = "Business Loan"
+type = "liability"
+kind = "loan"
+pack = "business"
+
+[[account]]
+code = "3000"
+name = "Owner's Capital"
+type = "equity"
+kind = "equity"
+pack = "business"
+
+[[account]]
+code = "3100"
+name = "Owner's Draws"
+type = "equity"
+kind = "equity"
+pack = "business"
+contra = true
+
+[[account]]
+code = "3200"
+name = "Retained Earnings"
+type = "equity"
+kind = "equity"
+pack = "business"
+system = true
+note = "Year-end close posts net income here."
+
+[[account]]
+code = "4500"
+name = "Sales"
+type = "income"
+kind = "income"
+pack = "business"
+
+[[account]]
+code = "4510"
+name = "Service Revenue"
+type = "income"
+kind = "income"
+pack = "business"
+
+[[account]]
+code = "4590"
+name = "Discounts & Refunds Given"
+type = "income"
+kind = "income"
+pack = "business"
+contra = true
+
+[[account]]
+code = "5000"
+name = "Cost of Goods Sold"
+type = "expense"
+kind = "cost_of_sales"
+pack = "business"
+
+[[account]]
+code = "5100"
+name = "Materials & Supplies"
+type = "expense"
+kind = "cost_of_sales"
+pack = "business"
+
+[[account]]
+code = "5200"
+name = "Subcontractors"
+type = "expense"
+kind = "cost_of_sales"
+pack = "business"
+
+[[account]]
+code = "5300"
+name = "Shipping & Freight"
+type = "expense"
+kind = "cost_of_sales"
+pack = "business"
+
+[[account]]
+code = "7000"
+name = "Advertising & Marketing"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7050"
+name = "Bank & Payment Processing Fees"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7100"
+name = "Contract Labor"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7150"
+name = "Depreciation"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7200"
+name = "Business Insurance"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7250"
+name = "Business Interest"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7300"
+name = "Legal & Professional Fees"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7350"
+name = "Business Meals"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7400"
+name = "Office Supplies"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7450"
+name = "Rent & Lease"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7500"
+name = "Repairs & Maintenance"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7550"
+name = "Software & Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7600"
+name = "Taxes & Licenses"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7650"
+name = "Business Travel"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7700"
+name = "Business Utilities & Telephone"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7750"
+name = "Vehicle Expenses"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7800"
+name = "Wages"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7850"
+name = "Payroll Taxes"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+[[account]]
+code = "7900"
+name = "Home Office"
+type = "expense"
+kind = "expense"
+pack = "business"
+
+# ============================================================== nonprofit ===
+# Functional split (program / management & general / fundraising) is meant to
+# be a class/tag on transactions, not separate accounts.
+
+[[account]]
+code = "1600"
+name = "Buildings & Equipment"
+type = "asset"
+kind = "fixed_asset"
+pack = "nonprofit"
+
+[[account]]
+code = "1650"
+name = "Accumulated Depreciation"
+type = "asset"
+kind = "fixed_asset"
+pack = "nonprofit"
+contra = true
+
+[[account]]
+code = "2200"
+name = "Payroll Liabilities"
+type = "liability"
+kind = "other_liability"
+pack = "nonprofit"
+
+[[account]]
+code = "3000"
+name = "Net Assets Without Donor Restrictions"
+type = "equity"
+kind = "equity"
+pack = "nonprofit"
+system = true
+note = "Year-end close posts the change in net assets here."
+
+[[account]]
+code = "3100"
+name = "Net Assets With Donor Restrictions"
+type = "equity"
+kind = "equity"
+pack = "nonprofit"
+system = true
+
+[[account]]
+code = "4000"
+name = "General Contributions"
+type = "income"
+kind = "income"
+pack = "nonprofit"
+note = "Tithes, offerings, unrestricted gifts."
+
+[[account]]
+code = "4010"
+name = "Designated / Restricted Contributions"
+type = "income"
+kind = "income"
+pack = "nonprofit"
+
+[[account]]
+code = "4020"
+name = "Grants"
+type = "income"
+kind = "income"
+pack = "nonprofit"
+
+[[account]]
+code = "4030"
+name = "In-Kind Contributions"
+type = "income"
+kind = "income"
+pack = "nonprofit"
+
+[[account]]
+code = "4040"
+name = "Program & Event Revenue"
+type = "income"
+kind = "income"
+pack = "nonprofit"
+
+[[account]]
+code = "4050"
+name = "Facility Use & Rental Income"
+type = "income"
+kind = "income"
+pack = "nonprofit"
+
+[[account]]
+code = "6000"
+name = "Personnel"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+header = true
+
+[[account]]
+code = "6010"
+name = "Salaries & Wages"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6000"
+
+[[account]]
+code = "6020"
+name = "Payroll Taxes"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6000"
+
+[[account]]
+code = "6030"
+name = "Benefits & Housing Allowance"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6000"
+
+[[account]]
+code = "6100"
+name = "Facilities"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+header = true
+
+[[account]]
+code = "6110"
+name = "Rent / Mortgage Interest"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6100"
+
+[[account]]
+code = "6120"
+name = "Utilities"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6100"
+
+[[account]]
+code = "6130"
+name = "Property Insurance"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6100"
+
+[[account]]
+code = "6140"
+name = "Repairs & Maintenance"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6100"
+
+[[account]]
+code = "6200"
+name = "Programs & Ministry"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+header = true
+
+[[account]]
+code = "6210"
+name = "Program Supplies"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6200"
+
+[[account]]
+code = "6220"
+name = "Outreach & Benevolence"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6200"
+
+[[account]]
+code = "6230"
+name = "Missions & Grants Given"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6200"
+
+[[account]]
+code = "6240"
+name = "Events"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6200"
+
+[[account]]
+code = "6300"
+name = "Administration"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+header = true
+
+[[account]]
+code = "6310"
+name = "Office Supplies & Postage"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6300"
+
+[[account]]
+code = "6320"
+name = "Software & Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6300"
+
+[[account]]
+code = "6330"
+name = "Professional Fees"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6300"
+
+[[account]]
+code = "6340"
+name = "Bank & Payment Processing Fees"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6300"
+
+[[account]]
+code = "6350"
+name = "Travel & Mileage"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6300"
+
+[[account]]
+code = "6360"
+name = "Depreciation"
+type = "expense"
+kind = "expense"
+pack = "nonprofit"
+parent = "6300"
+
+# ========================================================= form1040 ===
+# Personal books grouped by where amounts land on Form 1040 (tax year 2025).
+# `tax_line` is a reporting hint, not tax advice; check each year's forms.
+# Business (Sch C) and rental (Sch E) activity: use the business pack instead.
+# IRA/HSA contributions are transfers to asset accounts, not expenses.
+
+[[account]]
+code = "1430"
+name = "Health Savings Account"
+type = "asset"
+kind = "investment"
+pack = "form1040"
+note = "Contributions you make directly (not through payroll) go on Sch 1 L13 via Form 8889."
+
+[[account]]
+code = "1500"
+name = "Home"
+type = "asset"
+kind = "fixed_asset"
+pack = "form1040"
+
+[[account]]
+code = "1510"
+name = "Vehicles"
+type = "asset"
+kind = "fixed_asset"
+pack = "form1040"
+
+[[account]]
+code = "2300"
+name = "Mortgage"
+type = "liability"
+kind = "loan"
+pack = "form1040"
+
+[[account]]
+code = "2400"
+name = "Auto Loan"
+type = "liability"
+kind = "loan"
+pack = "form1040"
+
+[[account]]
+code = "2500"
+name = "Student Loans"
+type = "liability"
+kind = "loan"
+pack = "form1040"
+
+[[account]]
+code = "4000"
+name = "Form 1040 Income"
+type = "income"
+kind = "income"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "4010"
+name = "W-2 Wages"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4000"
+tax_line = "1040 L1a"
+note = "Gross pay; record withholding and payroll deductions as separate splits."
+
+[[account]]
+code = "4020"
+name = "Tips Not on W-2"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4000"
+tax_line = "1040 L1c"
+
+[[account]]
+code = "4030"
+name = "Tax-Exempt Interest"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4000"
+tax_line = "1040 L2a"
+
+[[account]]
+code = "4040"
+name = "IRA Distributions"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4000"
+tax_line = "1040 L4a/L4b"
+
+[[account]]
+code = "4050"
+name = "Pensions & Annuities"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4000"
+tax_line = "1040 L5a/L5b"
+
+[[account]]
+code = "4060"
+name = "Social Security Benefits"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4000"
+tax_line = "1040 L6a/L6b"
+
+[[account]]
+code = "4100"
+name = "Schedule 1 Additional Income"
+type = "income"
+kind = "income"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "4110"
+name = "State & Local Tax Refunds"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4100"
+tax_line = "Sch 1 L1"
+note = "Taxable only if you itemized last year."
+
+[[account]]
+code = "4120"
+name = "Alimony Received"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4100"
+tax_line = "Sch 1 L2a"
+note = "Pre-2019 divorce agreements only."
+
+[[account]]
+code = "4130"
+name = "Unemployment Compensation"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4100"
+tax_line = "Sch 1 L7"
+
+[[account]]
+code = "4140"
+name = "Gambling Winnings"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4100"
+tax_line = "Sch 1 L8b"
+
+[[account]]
+code = "4190"
+name = "Other Taxable Income"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4100"
+tax_line = "Sch 1 L8z"
+
+[[account]]
+code = "4200"
+name = "Non-Taxable Receipts"
+type = "income"
+kind = "income"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "4210"
+name = "Gifts Received"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4200"
+
+[[account]]
+code = "4220"
+name = "Refunds & Reimbursements"
+type = "income"
+kind = "income"
+pack = "form1040"
+parent = "4200"
+note = "Record federal tax refunds against 6600 Federal Tax Payments instead."
+
+[[account]]
+code = "6000"
+name = "Schedule 1 Adjustments"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6010"
+name = "Educator Expenses"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6000"
+tax_line = "Sch 1 L11"
+
+[[account]]
+code = "6020"
+name = "Alimony Paid"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6000"
+tax_line = "Sch 1 L19a"
+note = "Pre-2019 divorce agreements only."
+
+[[account]]
+code = "6030"
+name = "Student Loan Interest"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6000"
+tax_line = "Sch 1 L21"
+
+[[account]]
+code = "6100"
+name = "Schedule 1-A Deductions"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+note = "New for 2025–2028. Tips and overtime deductions come from W-2 data, not expense accounts."
+
+[[account]]
+code = "6110"
+name = "Qualified Car Loan Interest"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6100"
+tax_line = "Sch 1-A → 1040 L13b"
+note = "New U.S.-assembled vehicle, personal use."
+
+[[account]]
+code = "6200"
+name = "Schedule A — Medical & Dental"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6210"
+name = "Health Insurance Premiums"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6200"
+tax_line = "Sch A L1"
+note = "After-tax premiums only; pre-tax payroll premiums don't count."
+
+[[account]]
+code = "6220"
+name = "Doctors, Dental & Vision"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6200"
+tax_line = "Sch A L1"
+
+[[account]]
+code = "6230"
+name = "Prescriptions"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6200"
+tax_line = "Sch A L1"
+
+[[account]]
+code = "6300"
+name = "Schedule A — Taxes You Paid"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6310"
+name = "State & Local Income Tax"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6300"
+tax_line = "Sch A L5a"
+
+[[account]]
+code = "6320"
+name = "Real Estate Tax"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6300"
+tax_line = "Sch A L5b"
+
+[[account]]
+code = "6330"
+name = "Personal Property Tax"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6300"
+tax_line = "Sch A L5c"
+note = "e.g. value-based vehicle registration."
+
+[[account]]
+code = "6400"
+name = "Schedule A — Interest You Paid"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6410"
+name = "Mortgage Interest (Form 1098)"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6400"
+tax_line = "Sch A L8a"
+
+[[account]]
+code = "6420"
+name = "Mortgage Points Not on 1098"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6400"
+tax_line = "Sch A L8c"
+
+[[account]]
+code = "6430"
+name = "Investment Interest"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6400"
+tax_line = "Sch A L9"
+
+[[account]]
+code = "6500"
+name = "Schedule A — Gifts to Charity"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6510"
+name = "Cash & Check Donations"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6500"
+tax_line = "Sch A L11"
+note = "Keep written acknowledgment for gifts of $250 or more."
+
+[[account]]
+code = "6520"
+name = "Non-Cash Donations"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6500"
+tax_line = "Sch A L12"
+note = "Form 8283 if over $500."
+
+[[account]]
+code = "6600"
+name = "Federal Tax Payments"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6610"
+name = "Federal Withholding (W-2)"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6600"
+tax_line = "1040 L25a"
+
+[[account]]
+code = "6620"
+name = "Federal Withholding (1099)"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6600"
+tax_line = "1040 L25b"
+
+[[account]]
+code = "6630"
+name = "Estimated Tax Payments"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6600"
+tax_line = "1040 L26"
+
+[[account]]
+code = "6640"
+name = "Social Security & Medicare"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6600"
+note = "Payroll FICA; not deductible."
+
+[[account]]
+code = "6700"
+name = "Credit-Eligible Expenses"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6710"
+name = "Child & Dependent Care"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6700"
+tax_line = "Form 2441"
+
+[[account]]
+code = "6720"
+name = "Tuition & Education"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6700"
+tax_line = "Form 8863"
+
+[[account]]
+code = "6800"
+name = "Everyday Living (Not Deductible)"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+header = true
+
+[[account]]
+code = "6805"
+name = "Rent"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6810"
+name = "Home Insurance & HOA"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6815"
+name = "Home Maintenance"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6820"
+name = "Utilities & Phone"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6825"
+name = "Groceries"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6830"
+name = "Dining Out"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6835"
+name = "Fuel & Auto Upkeep"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6840"
+name = "Auto Insurance"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6845"
+name = "Clothing & Personal Care"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6850"
+name = "Subscriptions & Entertainment"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6855"
+name = "Travel & Vacation"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6860"
+name = "Pets"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6865"
+name = "Gifts Given"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6870"
+name = "Bank Fees"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6875"
+name = "Credit Card & Other Interest"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+[[account]]
+code = "6880"
+name = "Life Insurance"
+type = "expense"
+kind = "expense"
+pack = "form1040"
+parent = "6800"
+
+# ============================================================ schedc ===
+# Sole proprietor books grouped by Schedule C (tax year 2025). Codes 70xx
+# follow the Sch C line number where possible. Codes and names don't clash
+# with the form1040 pack, so the two can be combined in one book.
+# Owner's SE tax, health insurance and retirement contributions are personal
+# (Sch SE / Sch 1), so pay them from Owner's Draws, not Sch C accounts.
+
+[[account]]
+code = "1020"
+name = "Business Checking"
+type = "asset"
+kind = "bank"
+pack = "schedc"
+note = "Keep business money separate from household accounts."
+
+[[account]]
+code = "1350"
+name = "Inventory"
+type = "asset"
+kind = "other_asset"
+pack = "schedc"
+note = "Year-end count feeds Sch C L35 (beginning) and L41 (ending)."
+
+[[account]]
+code = "1600"
+name = "Business Equipment"
+type = "asset"
+kind = "fixed_asset"
+pack = "schedc"
+
+[[account]]
+code = "1650"
+name = "Accumulated Depreciation"
+type = "asset"
+kind = "fixed_asset"
+pack = "schedc"
+contra = true
+
+[[account]]
+code = "2200"
+name = "Payroll Liabilities"
+type = "liability"
+kind = "other_liability"
+pack = "schedc"
+
+[[account]]
+code = "2600"
+name = "Business Loan"
+type = "liability"
+kind = "loan"
+pack = "schedc"
+
+[[account]]
+code = "3000"
+name = "Owner's Capital"
+type = "equity"
+kind = "equity"
+pack = "schedc"
+system = true
+note = "System: year-end close posts net profit here (no retained earnings for a sole proprietor)."
+
+[[account]]
+code = "3100"
+name = "Owner's Draws"
+type = "equity"
+kind = "equity"
+pack = "schedc"
+contra = true
+note = "Money moved to personal use; not an expense."
+
+[[account]]
+code = "4500"
+name = "Gross Receipts"
+type = "income"
+kind = "income"
+pack = "schedc"
+tax_line = "Sch C L1"
+
+[[account]]
+code = "4510"
+name = "Returns & Allowances"
+type = "income"
+kind = "income"
+pack = "schedc"
+contra = true
+tax_line = "Sch C L2"
+
+[[account]]
+code = "4520"
+name = "Other Business Income"
+type = "income"
+kind = "income"
+pack = "schedc"
+tax_line = "Sch C L6"
+
+[[account]]
+code = "5000"
+name = "Cost of Goods Sold (Part III)"
+type = "expense"
+kind = "cost_of_sales"
+pack = "schedc"
+header = true
+
+[[account]]
+code = "5010"
+name = "Inventory Purchases"
+type = "expense"
+kind = "cost_of_sales"
+pack = "schedc"
+parent = "5000"
+tax_line = "Sch C L36"
+
+[[account]]
+code = "5020"
+name = "Cost of Labor"
+type = "expense"
+kind = "cost_of_sales"
+pack = "schedc"
+parent = "5000"
+tax_line = "Sch C L37"
+
+[[account]]
+code = "5030"
+name = "Materials & Supplies"
+type = "expense"
+kind = "cost_of_sales"
+pack = "schedc"
+parent = "5000"
+tax_line = "Sch C L38"
+
+[[account]]
+code = "5040"
+name = "Other Costs of Goods"
+type = "expense"
+kind = "cost_of_sales"
+pack = "schedc"
+parent = "5000"
+tax_line = "Sch C L39"
+
+[[account]]
+code = "7008"
+name = "Advertising"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L8"
+
+[[account]]
+code = "7009"
+name = "Car & Truck Expenses"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L9"
+note = "Standard mileage (70¢/mile for 2025) or actual costs; log business miles."
+
+[[account]]
+code = "7010"
+name = "Commissions & Fees"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L10"
+
+[[account]]
+code = "7011"
+name = "Contract Labor"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L11"
+note = "Issue 1099-NEC where required."
+
+[[account]]
+code = "7013"
+name = "Depreciation & Section 179"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L13"
+note = "Form 4562."
+
+[[account]]
+code = "7014"
+name = "Employee Benefit Programs"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L14"
+
+[[account]]
+code = "7015"
+name = "Business Insurance (Not Health)"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L15"
+
+[[account]]
+code = "7016"
+name = "Mortgage Interest — Business Property"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L16a"
+
+[[account]]
+code = "7017"
+name = "Other Business Interest"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L16b"
+
+[[account]]
+code = "7018"
+name = "Legal & Professional Services"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L17"
+
+[[account]]
+code = "7019"
+name = "Office Expense"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L18"
+
+[[account]]
+code = "7020"
+name = "Pension & Profit-Sharing Plans"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L19"
+note = "Employee plans only; the owner's own contributions go on Sch 1."
+
+[[account]]
+code = "7021"
+name = "Rent — Vehicles & Equipment"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L20a"
+
+[[account]]
+code = "7022"
+name = "Rent — Business Property"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L20b"
+
+[[account]]
+code = "7023"
+name = "Repairs & Maintenance"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L21"
+
+[[account]]
+code = "7024"
+name = "Supplies"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L22"
+note = "Not inventory materials; those go in 5030."
+
+[[account]]
+code = "7025"
+name = "Taxes & Licenses"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L23"
+note = "Includes employer payroll taxes; not your own income or SE tax."
+
+[[account]]
+code = "7026"
+name = "Business Travel"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L24a"
+
+[[account]]
+code = "7027"
+name = "Business Meals"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L24b"
+note = "Record the full amount; the 50% limit is applied on the return."
+
+[[account]]
+code = "7028"
+name = "Business Utilities"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L25"
+
+[[account]]
+code = "7029"
+name = "Wages"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L26"
+note = "Employees only; never the owner."
+
+[[account]]
+code = "7030"
+name = "Other Expenses (Part V)"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+header = true
+note = "Each child is listed by name in Part V; the total goes on L27b."
+
+[[account]]
+code = "7031"
+name = "Software & Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+parent = "7030"
+tax_line = "Sch C L27b"
+
+[[account]]
+code = "7032"
+name = "Bank & Payment Processing Fees"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+parent = "7030"
+tax_line = "Sch C L27b"
+
+[[account]]
+code = "7033"
+name = "Dues & Memberships"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+parent = "7030"
+tax_line = "Sch C L27b"
+
+[[account]]
+code = "7034"
+name = "Education & Training"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+parent = "7030"
+tax_line = "Sch C L27b"
+
+[[account]]
+code = "7035"
+name = "Postage & Shipping"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+parent = "7030"
+tax_line = "Sch C L27b"
+
+[[account]]
+code = "7040"
+name = "Business Use of Home"
+type = "expense"
+kind = "expense"
+pack = "schedc"
+tax_line = "Sch C L30"
+note = "Form 8829 or the simplified method."
+
+# ============================================================ f1120s ===
+# S corporation books grouped by Form 1120-S (tax year 2025): page 1 lines
+# for ordinary income/deductions, Schedule K for separately stated items,
+# Schedule L for the balance sheet. Opening Balance Equity should be zero
+# before Schedule L is prepared.
+
+[[account]]
+code = "1350"
+name = "Inventory"
+type = "asset"
+kind = "other_asset"
+pack = "f1120s"
+tax_line = "Sch L L3"
+
+[[account]]
+code = "1360"
+name = "Prepaid Expenses"
+type = "asset"
+kind = "other_asset"
+pack = "f1120s"
+tax_line = "Sch L L6"
+
+[[account]]
+code = "1370"
+name = "Loans to Shareholders"
+type = "asset"
+kind = "other_asset"
+pack = "f1120s"
+tax_line = "Sch L L7"
+note = "Money the corporation lent an owner; not a distribution."
+
+[[account]]
+code = "1380"
+name = "Corporate Investments"
+type = "asset"
+kind = "investment"
+pack = "f1120s"
+tax_line = "Sch L L9"
+
+[[account]]
+code = "1600"
+name = "Buildings & Equipment"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1120s"
+tax_line = "Sch L L10a"
+
+[[account]]
+code = "1650"
+name = "Accumulated Depreciation"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1120s"
+contra = true
+tax_line = "Sch L L10b"
+
+[[account]]
+code = "1700"
+name = "Land"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1120s"
+tax_line = "Sch L L12"
+
+[[account]]
+code = "1800"
+name = "Intangible Assets"
+type = "asset"
+kind = "other_asset"
+pack = "f1120s"
+tax_line = "Sch L L13a"
+
+[[account]]
+code = "1850"
+name = "Accumulated Amortization"
+type = "asset"
+kind = "other_asset"
+pack = "f1120s"
+contra = true
+tax_line = "Sch L L13b"
+
+[[account]]
+code = "2200"
+name = "Payroll Liabilities"
+type = "liability"
+kind = "other_liability"
+pack = "f1120s"
+tax_line = "Sch L L18"
+
+[[account]]
+code = "2550"
+name = "Short-Term Notes Payable"
+type = "liability"
+kind = "loan"
+pack = "f1120s"
+tax_line = "Sch L L17"
+note = "Due within 1 year."
+
+[[account]]
+code = "2650"
+name = "Loans from Shareholders"
+type = "liability"
+kind = "loan"
+pack = "f1120s"
+tax_line = "Sch L L19"
+note = "Owner money lent to the corporation; keep a note and repayment record."
+
+[[account]]
+code = "2700"
+name = "Long-Term Notes Payable"
+type = "liability"
+kind = "loan"
+pack = "f1120s"
+tax_line = "Sch L L20"
+note = "Due in 1 year or more."
+
+[[account]]
+code = "3000"
+name = "Capital Stock"
+type = "equity"
+kind = "equity"
+pack = "f1120s"
+tax_line = "Sch L L22"
+
+[[account]]
+code = "3050"
+name = "Additional Paid-In Capital"
+type = "equity"
+kind = "equity"
+pack = "f1120s"
+tax_line = "Sch L L23"
+
+[[account]]
+code = "3200"
+name = "Retained Earnings"
+type = "equity"
+kind = "equity"
+pack = "f1120s"
+system = true
+tax_line = "Sch L L24"
+note = "System: year-end close posts net income and closes distributions here."
+
+[[account]]
+code = "3300"
+name = "Shareholder Distributions"
+type = "equity"
+kind = "equity"
+pack = "f1120s"
+contra = true
+tax_line = "Sch K L16d"
+note = "Profit paid out to owners; not wages, not an expense. Pro-rata by ownership."
+
+[[account]]
+code = "4500"
+name = "Gross Receipts"
+type = "income"
+kind = "income"
+pack = "f1120s"
+tax_line = "1120-S L1a"
+
+[[account]]
+code = "4510"
+name = "Returns & Allowances"
+type = "income"
+kind = "income"
+pack = "f1120s"
+contra = true
+tax_line = "1120-S L1b"
+
+[[account]]
+code = "4530"
+name = "Gain on Sale of Business Property"
+type = "income"
+kind = "income"
+pack = "f1120s"
+tax_line = "1120-S L4"
+note = "Form 4797."
+
+[[account]]
+code = "4540"
+name = "Other Business Income"
+type = "income"
+kind = "income"
+pack = "f1120s"
+tax_line = "1120-S L5"
+
+[[account]]
+code = "4600"
+name = "Ordinary Dividends"
+type = "income"
+kind = "income"
+pack = "f1120s"
+tax_line = "Sch K L5a"
+note = "Qualified part also goes on Sch K L5b."
+
+[[account]]
+code = "4610"
+name = "Tax-Exempt Interest"
+type = "income"
+kind = "income"
+pack = "f1120s"
+tax_line = "Sch K L16a"
+
+[[account]]
+code = "4620"
+name = "Capital Gains & Losses"
+type = "income"
+kind = "income"
+pack = "f1120s"
+tax_line = "Sch K L7/8a"
+note = "Short-term L7, long-term L8a (Sch D)."
+
+[[account]]
+code = "5000"
+name = "Cost of Goods Sold (Form 1125-A)"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120s"
+header = true
+note = "Total goes on 1120-S L2."
+
+[[account]]
+code = "5010"
+name = "Inventory Purchases"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120s"
+parent = "5000"
+tax_line = "1125-A L2"
+
+[[account]]
+code = "5020"
+name = "Cost of Labor"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120s"
+parent = "5000"
+tax_line = "1125-A L3"
+
+[[account]]
+code = "5030"
+name = "Other Costs of Goods"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120s"
+parent = "5000"
+tax_line = "1125-A L5"
+
+[[account]]
+code = "7007"
+name = "Officer Compensation"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L7"
+note = "W-2 pay to shareholder-officers (Form 1125-E if receipts are $500k+). Must be reasonable before taking distributions."
+
+[[account]]
+code = "7008"
+name = "Salaries & Wages"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L8"
+note = "Non-officer employees."
+
+[[account]]
+code = "7009"
+name = "Repairs & Maintenance"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L9"
+
+[[account]]
+code = "7010"
+name = "Bad Debts"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L10"
+
+[[account]]
+code = "7011"
+name = "Rent Expense"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L11"
+
+[[account]]
+code = "7012"
+name = "Taxes & Licenses"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L12"
+note = "Includes employer payroll taxes."
+
+[[account]]
+code = "7013"
+name = "Interest Expense"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L13"
+
+[[account]]
+code = "7014"
+name = "Depreciation"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L14"
+note = "Form 4562. Section 179 goes in 7015 instead."
+
+[[account]]
+code = "7015"
+name = "Section 179 Expense"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "Sch K L11"
+note = "Separately stated; not on page 1."
+
+[[account]]
+code = "7016"
+name = "Advertising"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L16"
+
+[[account]]
+code = "7017"
+name = "Pension & Profit-Sharing Plans"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L17"
+
+[[account]]
+code = "7018"
+name = "Employee Benefit Programs"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "1120-S L18"
+note = "Health insurance for >2% shareholders belongs in their W-2 pay (7007), not here."
+
+[[account]]
+code = "7020"
+name = "Other Deductions"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+header = true
+note = "Children are listed on the L20 statement."
+
+[[account]]
+code = "7021"
+name = "Insurance"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7022"
+name = "Legal & Professional Fees"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7023"
+name = "Office Expense & Supplies"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7024"
+name = "Software & Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7025"
+name = "Utilities & Telephone"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7026"
+name = "Travel"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7027"
+name = "Meals"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+note = "Record the full amount; the nondeductible 50% moves to Sch K L16c on the return."
+
+[[account]]
+code = "7028"
+name = "Bank & Payment Processing Fees"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7029"
+name = "Amortization"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7030"
+name = "Vehicle Expenses"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7031"
+name = "Dues & Memberships"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7032"
+name = "Postage & Shipping"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+parent = "7020"
+tax_line = "1120-S L20"
+
+[[account]]
+code = "7040"
+name = "Charitable Contributions"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "Sch K L12a"
+note = "Separately stated; passes through to shareholders."
+
+[[account]]
+code = "7050"
+name = "Nondeductible Expenses"
+type = "expense"
+kind = "expense"
+pack = "f1120s"
+tax_line = "Sch K L16c"
+note = "Fines, penalties, political contributions."
+
+# ============================================================= f1065 ===
+# Partnership / multi-member LLC books grouped by Form 1065 (tax year 2025):
+# page 1 for ordinary income/deductions, Schedule K for separately stated
+# items, Schedule L for the balance sheet. Two placeholder partners; add a
+# Capital + Distributions pair per partner. No retained earnings: the
+# year-end close allocates net income to partner capital per the agreement.
+
+[[account]]
+code = "1350"
+name = "Inventory"
+type = "asset"
+kind = "other_asset"
+pack = "f1065"
+tax_line = "Sch L L3"
+
+[[account]]
+code = "1360"
+name = "Prepaid Expenses"
+type = "asset"
+kind = "other_asset"
+pack = "f1065"
+tax_line = "Sch L L6"
+
+[[account]]
+code = "1370"
+name = "Loans to Partners"
+type = "asset"
+kind = "other_asset"
+pack = "f1065"
+tax_line = "Sch L L7a"
+note = "Money the partnership lent a partner; not a distribution."
+
+[[account]]
+code = "1380"
+name = "Partnership Investments"
+type = "asset"
+kind = "investment"
+pack = "f1065"
+tax_line = "Sch L L8"
+
+[[account]]
+code = "1600"
+name = "Buildings & Equipment"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1065"
+tax_line = "Sch L L9a"
+
+[[account]]
+code = "1650"
+name = "Accumulated Depreciation"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1065"
+contra = true
+tax_line = "Sch L L9b"
+
+[[account]]
+code = "1700"
+name = "Land"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1065"
+tax_line = "Sch L L11"
+
+[[account]]
+code = "1800"
+name = "Intangible Assets"
+type = "asset"
+kind = "other_asset"
+pack = "f1065"
+tax_line = "Sch L L12a"
+
+[[account]]
+code = "1850"
+name = "Accumulated Amortization"
+type = "asset"
+kind = "other_asset"
+pack = "f1065"
+contra = true
+tax_line = "Sch L L12b"
+
+[[account]]
+code = "2200"
+name = "Payroll Liabilities"
+type = "liability"
+kind = "other_liability"
+pack = "f1065"
+tax_line = "Sch L L17"
+
+[[account]]
+code = "2550"
+name = "Short-Term Notes Payable"
+type = "liability"
+kind = "loan"
+pack = "f1065"
+tax_line = "Sch L L16"
+note = "Due within 1 year."
+
+[[account]]
+code = "2650"
+name = "Loans from Partners"
+type = "liability"
+kind = "loan"
+pack = "f1065"
+tax_line = "Sch L L19a"
+note = "Partner money lent to the partnership, not a capital contribution."
+
+[[account]]
+code = "2700"
+name = "Long-Term Notes Payable"
+type = "liability"
+kind = "loan"
+pack = "f1065"
+tax_line = "Sch L L19b"
+note = "Due in 1 year or more."
+
+[[account]]
+code = "3000"
+name = "Partners' Capital"
+type = "equity"
+kind = "equity"
+pack = "f1065"
+header = true
+note = "One child per partner; Sch L L21 is the total. Rename to partner names."
+
+[[account]]
+code = "3010"
+name = "Partner 1 Capital"
+type = "equity"
+kind = "equity"
+pack = "f1065"
+parent = "3000"
+tax_line = "Sch L L21"
+note = "Contributions and allocated income or loss per the partnership agreement."
+
+[[account]]
+code = "3020"
+name = "Partner 2 Capital"
+type = "equity"
+kind = "equity"
+pack = "f1065"
+parent = "3000"
+tax_line = "Sch L L21"
+
+[[account]]
+code = "3100"
+name = "Partner Distributions"
+type = "equity"
+kind = "equity"
+pack = "f1065"
+header = true
+note = "Closed into each partner's capital account at year end."
+
+[[account]]
+code = "3110"
+name = "Partner 1 Distributions"
+type = "equity"
+kind = "equity"
+pack = "f1065"
+parent = "3100"
+contra = true
+tax_line = "Sch K L19a"
+note = "Cash or marketable securities paid out."
+
+[[account]]
+code = "3120"
+name = "Partner 2 Distributions"
+type = "equity"
+kind = "equity"
+pack = "f1065"
+parent = "3100"
+contra = true
+tax_line = "Sch K L19a"
+
+[[account]]
+code = "4500"
+name = "Gross Receipts"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "1065 L1a"
+
+[[account]]
+code = "4510"
+name = "Returns & Allowances"
+type = "income"
+kind = "income"
+pack = "f1065"
+contra = true
+tax_line = "1065 L1b"
+
+[[account]]
+code = "4520"
+name = "Income from Other Partnerships"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "1065 L4"
+note = "From K-1s the partnership receives."
+
+[[account]]
+code = "4530"
+name = "Gain on Sale of Business Property"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "1065 L6"
+note = "Form 4797."
+
+[[account]]
+code = "4540"
+name = "Other Business Income"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "1065 L7"
+
+[[account]]
+code = "4600"
+name = "Ordinary Dividends"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "Sch K L6a"
+note = "Qualified part also goes on Sch K L6b."
+
+[[account]]
+code = "4610"
+name = "Tax-Exempt Interest"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "Sch K L18a"
+
+[[account]]
+code = "4620"
+name = "Capital Gains & Losses"
+type = "income"
+kind = "income"
+pack = "f1065"
+tax_line = "Sch K L8/9a"
+note = "Short-term L8, long-term L9a."
+
+[[account]]
+code = "5000"
+name = "Cost of Goods Sold (Form 1125-A)"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1065"
+header = true
+note = "Total goes on 1065 L2."
+
+[[account]]
+code = "5010"
+name = "Inventory Purchases"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1065"
+parent = "5000"
+tax_line = "1125-A L2"
+
+[[account]]
+code = "5020"
+name = "Cost of Labor"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1065"
+parent = "5000"
+tax_line = "1125-A L3"
+
+[[account]]
+code = "5030"
+name = "Other Costs of Goods"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1065"
+parent = "5000"
+tax_line = "1125-A L5"
+
+[[account]]
+code = "7009"
+name = "Salaries & Wages"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L9"
+note = "Employees only; partners aren't employees."
+
+[[account]]
+code = "7010"
+name = "Guaranteed Payments to Partners"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L10"
+note = "Fixed pay to partners for services or capital; also reported on Sch K L4. Not W-2 wages."
+
+[[account]]
+code = "7011"
+name = "Repairs & Maintenance"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L11"
+
+[[account]]
+code = "7012"
+name = "Bad Debts"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L12"
+
+[[account]]
+code = "7013"
+name = "Rent Expense"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L13"
+
+[[account]]
+code = "7014"
+name = "Taxes & Licenses"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L14"
+note = "Includes employer payroll taxes."
+
+[[account]]
+code = "7015"
+name = "Interest Expense"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L15"
+
+[[account]]
+code = "7016"
+name = "Depreciation"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L16a"
+note = "Form 4562. Section 179 goes in 7017 instead."
+
+[[account]]
+code = "7017"
+name = "Section 179 Expense"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "Sch K L12"
+note = "Separately stated; not on page 1."
+
+[[account]]
+code = "7018"
+name = "Retirement Plans"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L18"
+note = "Employee plans only."
+
+[[account]]
+code = "7019"
+name = "Employee Benefit Programs"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "1065 L19"
+
+[[account]]
+code = "7020"
+name = "Other Deductions"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+header = true
+note = "Children are listed on the L21 statement."
+
+[[account]]
+code = "7021"
+name = "Advertising"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+note = "Form 1065 has no separate advertising line."
+
+[[account]]
+code = "7022"
+name = "Insurance"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7023"
+name = "Legal & Professional Fees"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7024"
+name = "Office Expense & Supplies"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7025"
+name = "Software & Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7026"
+name = "Utilities & Telephone"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7027"
+name = "Travel"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7028"
+name = "Meals"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+note = "Record the full amount; the nondeductible 50% moves to Sch K L18c on the return."
+
+[[account]]
+code = "7029"
+name = "Bank & Payment Processing Fees"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7030"
+name = "Amortization"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7031"
+name = "Vehicle Expenses"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7032"
+name = "Dues & Memberships"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7033"
+name = "Postage & Shipping"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+parent = "7020"
+tax_line = "1065 L21"
+
+[[account]]
+code = "7040"
+name = "Charitable Contributions"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "Sch K L13a"
+note = "Separately stated; passes through to partners."
+
+[[account]]
+code = "7050"
+name = "Nondeductible Expenses"
+type = "expense"
+kind = "expense"
+pack = "f1065"
+tax_line = "Sch K L18c"
+note = "Fines, penalties, political contributions."
+
+# ============================================================= f1120 ===
+# C corporation books grouped by Form 1120 (tax year 2025): page 1 for
+# income and deductions, Schedule L for the balance sheet, Schedule M-1 for
+# book items that never reach the return, Schedule M-2 for dividends.
+# Net income per books is after federal income tax (8000).
+
+[[account]]
+code = "1340"
+name = "Allowance for Bad Debts"
+type = "asset"
+kind = "other_asset"
+pack = "f1120"
+contra = true
+tax_line = "Sch L L2b"
+
+[[account]]
+code = "1350"
+name = "Inventory"
+type = "asset"
+kind = "other_asset"
+pack = "f1120"
+tax_line = "Sch L L3"
+
+[[account]]
+code = "1360"
+name = "Prepaid Expenses"
+type = "asset"
+kind = "other_asset"
+pack = "f1120"
+tax_line = "Sch L L6"
+
+[[account]]
+code = "1370"
+name = "Loans to Shareholders"
+type = "asset"
+kind = "other_asset"
+pack = "f1120"
+tax_line = "Sch L L7"
+note = "Money the corporation lent an owner; not a dividend."
+
+[[account]]
+code = "1380"
+name = "Corporate Investments"
+type = "asset"
+kind = "investment"
+pack = "f1120"
+tax_line = "Sch L L9"
+
+[[account]]
+code = "1600"
+name = "Buildings & Equipment"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1120"
+tax_line = "Sch L L10a"
+
+[[account]]
+code = "1650"
+name = "Accumulated Depreciation"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1120"
+contra = true
+tax_line = "Sch L L10b"
+
+[[account]]
+code = "1700"
+name = "Land"
+type = "asset"
+kind = "fixed_asset"
+pack = "f1120"
+tax_line = "Sch L L12"
+
+[[account]]
+code = "1800"
+name = "Intangible Assets"
+type = "asset"
+kind = "other_asset"
+pack = "f1120"
+tax_line = "Sch L L13a"
+
+[[account]]
+code = "1850"
+name = "Accumulated Amortization"
+type = "asset"
+kind = "other_asset"
+pack = "f1120"
+contra = true
+tax_line = "Sch L L13b"
+
+[[account]]
+code = "2200"
+name = "Payroll Liabilities"
+type = "liability"
+kind = "other_liability"
+pack = "f1120"
+tax_line = "Sch L L18"
+
+[[account]]
+code = "2210"
+name = "Income Taxes Payable"
+type = "liability"
+kind = "other_liability"
+pack = "f1120"
+tax_line = "Sch L L18"
+note = "Accrued federal and state income tax."
+
+[[account]]
+code = "2550"
+name = "Short-Term Notes Payable"
+type = "liability"
+kind = "loan"
+pack = "f1120"
+tax_line = "Sch L L17"
+note = "Due within 1 year."
+
+[[account]]
+code = "2650"
+name = "Loans from Shareholders"
+type = "liability"
+kind = "loan"
+pack = "f1120"
+tax_line = "Sch L L19"
+
+[[account]]
+code = "2700"
+name = "Long-Term Notes Payable"
+type = "liability"
+kind = "loan"
+pack = "f1120"
+tax_line = "Sch L L20"
+note = "Due in 1 year or more."
+
+[[account]]
+code = "3000"
+name = "Common Stock"
+type = "equity"
+kind = "equity"
+pack = "f1120"
+tax_line = "Sch L L22b"
+
+[[account]]
+code = "3050"
+name = "Additional Paid-In Capital"
+type = "equity"
+kind = "equity"
+pack = "f1120"
+tax_line = "Sch L L23"
+
+[[account]]
+code = "3200"
+name = "Retained Earnings"
+type = "equity"
+kind = "equity"
+pack = "f1120"
+system = true
+tax_line = "Sch L L25"
+note = "System: year-end close posts after-tax net income and closes dividends here."
+
+[[account]]
+code = "3300"
+name = "Dividends Paid"
+type = "equity"
+kind = "equity"
+pack = "f1120"
+contra = true
+tax_line = "Sch M-2 L5a"
+note = "Cash dividends to shareholders; not deductible. Issue 1099-DIV."
+
+[[account]]
+code = "3400"
+name = "Treasury Stock"
+type = "equity"
+kind = "equity"
+pack = "f1120"
+contra = true
+tax_line = "Sch L L27"
+
+[[account]]
+code = "4500"
+name = "Gross Receipts"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L1a"
+
+[[account]]
+code = "4510"
+name = "Returns & Allowances"
+type = "income"
+kind = "income"
+pack = "f1120"
+contra = true
+tax_line = "1120 L1b"
+
+[[account]]
+code = "4600"
+name = "Dividend Income"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L4"
+note = "Dividends-received deduction is figured on Schedule C of Form 1120."
+
+[[account]]
+code = "4610"
+name = "Tax-Exempt Interest"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "Sch M-1 L7"
+note = "Book income not on the return."
+
+[[account]]
+code = "4620"
+name = "Gross Rents"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L6"
+
+[[account]]
+code = "4625"
+name = "Gross Royalties"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L7"
+
+[[account]]
+code = "4630"
+name = "Capital Gains & Losses"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L8"
+note = "Schedule D. Corporations can only offset capital losses against capital gains."
+
+[[account]]
+code = "4640"
+name = "Gain on Sale of Business Property"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L9"
+note = "Form 4797."
+
+[[account]]
+code = "4650"
+name = "Other Income"
+type = "income"
+kind = "income"
+pack = "f1120"
+tax_line = "1120 L10"
+
+[[account]]
+code = "5000"
+name = "Cost of Goods Sold (Form 1125-A)"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120"
+header = true
+note = "Total goes on 1120 L2."
+
+[[account]]
+code = "5010"
+name = "Inventory Purchases"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120"
+parent = "5000"
+tax_line = "1125-A L2"
+
+[[account]]
+code = "5020"
+name = "Cost of Labor"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120"
+parent = "5000"
+tax_line = "1125-A L3"
+
+[[account]]
+code = "5030"
+name = "Other Costs of Goods"
+type = "expense"
+kind = "cost_of_sales"
+pack = "f1120"
+parent = "5000"
+tax_line = "1125-A L5"
+
+[[account]]
+code = "7012"
+name = "Officer Compensation"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L12"
+note = "Form 1125-E if receipts are $500k+."
+
+[[account]]
+code = "7013"
+name = "Salaries & Wages"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L13"
+
+[[account]]
+code = "7014"
+name = "Repairs & Maintenance"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L14"
+
+[[account]]
+code = "7015"
+name = "Bad Debts"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L15"
+
+[[account]]
+code = "7016"
+name = "Rent Expense"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L16"
+
+[[account]]
+code = "7017"
+name = "Taxes & Licenses"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L17"
+note = "Payroll, property and state taxes. Never federal income tax (see 8000)."
+
+[[account]]
+code = "7018"
+name = "Interest Expense"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L18"
+
+[[account]]
+code = "7019"
+name = "Charitable Contributions"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L19"
+note = "Deductible on page 1 for C corps, subject to an income limit."
+
+[[account]]
+code = "7020"
+name = "Depreciation & Section 179"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L20"
+note = "Form 4562; amounts not already in cost of goods sold."
+
+[[account]]
+code = "7022"
+name = "Advertising"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L22"
+
+[[account]]
+code = "7023"
+name = "Pension & Profit-Sharing Plans"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L23"
+
+[[account]]
+code = "7024"
+name = "Employee Benefit Programs"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "1120 L24"
+
+[[account]]
+code = "7026"
+name = "Other Deductions"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+header = true
+note = "Children are listed on the L26 statement."
+
+[[account]]
+code = "7030"
+name = "Insurance"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7031"
+name = "Legal & Professional Fees"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7032"
+name = "Office Expense & Supplies"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7033"
+name = "Software & Subscriptions"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7034"
+name = "Utilities & Telephone"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7035"
+name = "Travel"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7036"
+name = "Meals"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+note = "Record the full amount; the nondeductible 50% is added back on Sch M-1 L5c."
+
+[[account]]
+code = "7037"
+name = "Bank & Payment Processing Fees"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7038"
+name = "Amortization"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7039"
+name = "Vehicle Expenses"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7040"
+name = "Dues & Memberships"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7041"
+name = "Postage & Shipping"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+parent = "7026"
+tax_line = "1120 L26"
+
+[[account]]
+code = "7050"
+name = "Nondeductible Expenses"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "Sch M-1 L5"
+note = "Fines, penalties, political contributions; added back on Sch M-1."
+
+[[account]]
+code = "8000"
+name = "Federal Income Tax Expense"
+type = "expense"
+kind = "expense"
+pack = "f1120"
+tax_line = "Sch M-1 L2"
+note = "Book expense only; not deductible. Accrue to 2210."
+
+# ============================================================ module packs ===
+
+# --- sales (Invoicing / Estimates module) ---
+[[account]]
+code = "1200"
+name = "Accounts Receivable"
+type = "asset"
+kind = "receivable"
+pack = "sales"
+system = true
+
+[[account]]
+code = "1250"
+name = "Undeposited Payments"
+type = "asset"
+kind = "other_asset"
+pack = "sales"
+system = true
+note = "Customer payments waiting to be grouped into a bank deposit."
+
+[[account]]
+code = "2250"
+name = "Sales Tax Payable"
+type = "liability"
+kind = "other_liability"
+pack = "sales"
+
+# --- purchasing (Bills module) ---
+[[account]]
+code = "2000"
+name = "Accounts Payable"
+type = "liability"
+kind = "payable"
+pack = "purchasing"
+system = true
+
+# --- expenses (Expense Manager module) ---
+[[account]]
+code = "2270"
+name = "Reimbursements Owed"
+type = "liability"
+kind = "other_liability"
+pack = "expenses"
+system = true
+note = "Out-of-pocket expenses submitted but not yet paid back."
+
+# --- investments ---
+[[account]]
+code = "1400"
+name = "Brokerage"
+type = "asset"
+kind = "investment"
+pack = "investments"
+
+[[account]]
+code = "1410"
+name = "Certificates of Deposit"
+type = "asset"
+kind = "investment"
+pack = "investments"
+
+[[account]]
+code = "1420"
+name = "Retirement Account"
+type = "asset"
+kind = "investment"
+pack = "investments"
+
+[[account]]
+code = "4710"
+name = "Dividends"
+type = "income"
+kind = "income"
+pack = "investments"
+tax_line = "1040 L3b (qualified part: L3a)"
+
+[[account]]
+code = "4720"
+name = "Realized Gains & Losses"
+type = "income"
+kind = "income"
+pack = "investments"
+tax_line = "Sch D → 1040 L7"
+
+[[account]]
+code = "4730"
+name = "Unrealized Gains & Losses"
+type = "income"
+kind = "income"
+pack = "investments"
+
+[[account]]
+code = "8850"
+name = "Investment Fees"
+type = "expense"
+kind = "expense"
+pack = "investments"

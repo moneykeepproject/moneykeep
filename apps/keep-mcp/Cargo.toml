@@ -1,0 +1,35 @@
+[package]
+name = "keep-mcp"
+description = "keep-mcp: lets AI assistants use the MoneyKeep books you allow, over the Model Context Protocol (stdio). Optional, installed separately."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lib]
+name = "keep_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "keep-mcp"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+mk-commands.workspace = true
+mk-connect.workspace = true
+mk-control.workspace = true
+mk-mcp.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+jsonschema = { version = "0.59", default-features = false }
+mk-core.workspace = true
+mk-store.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

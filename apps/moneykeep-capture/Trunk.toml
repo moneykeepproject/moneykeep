@@ -1,0 +1,11 @@
+# Trunk (https://trunkrs.dev) builds the phone client into dist/:
+#   trunk build --release
+# `cargo xtask dist-capture` runs this and builds moneykeep-server with dist/
+# embedded (MK_CAPTURE_DIST); the server serves it at / with the security headers
+# (mobile-capture.md revision 2, see docs/deploy/phone-capture.md).
+[build]
+target = "index.html"
+dist = "dist"
+# Stable file names: web/start.js imports moneykeep-capture.js (no inline loader
+# script is needed, so the Content-Security-Policy can forbid inline scripts).
+filehash = false

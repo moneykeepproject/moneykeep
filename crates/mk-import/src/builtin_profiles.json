@@ -1,0 +1,690 @@
+[
+  {
+    "name": "Charles Schwab — CSV",
+    "format": "csv",
+    "signature": [
+      "Date",
+      "Action",
+      "Symbol",
+      "Description",
+      "Quantity",
+      "Price",
+      "Fees & Comm",
+      "Amount"
+    ],
+    "records": "",
+    "fields": {
+      "date": "Date",
+      "action": "Action",
+      "symbol": "Symbol",
+      "description": "Description",
+      "quantity": "Quantity",
+      "price": "Price",
+      "fees": "Fees & Comm",
+      "amount": "Amount"
+    },
+    "date_format": "MM/DD/YYYY",
+    "number_format": {
+      "decimal": ".",
+      "thousands": ",",
+      "parens_negative": true,
+      "currency_symbols": [
+        "$"
+      ]
+    },
+    "actions": [
+      {
+        "match_type": "equals",
+        "text": "Buy",
+        "action": "buy"
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell",
+        "action": "sell",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Credit Interest",
+        "action": "interest",
+        "with_security": false
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Interest",
+        "action": "interest"
+      },
+      {
+        "match_type": "equals",
+        "text": "Bond Interest",
+        "action": "interest",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Deposit Funds",
+        "action": "sell_proceeds"
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Deposit Adj",
+        "action": "sell_quantity"
+      },
+      {
+        "match_type": "equals",
+        "text": "Qualified Dividend",
+        "action": "dividend",
+        "kind": "qualified",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Cash Dividend",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Non-Qualified Div",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Reinvest Dividend",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Reinvest Shares",
+        "action": "reinvest_shares",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Long Term Cap Gain",
+        "action": "dividend",
+        "kind": "capital_gain_long",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Short Term Cap Gain",
+        "action": "dividend",
+        "kind": "capital_gain_short",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Journal",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "MoneyLink Transfer",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Funds Received",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Wire Funds",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Service Fee",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "ADR Mgmt Fee",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Foreign Tax Paid",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Stock Split",
+        "action": "split",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Buy to Open",
+        "action": "unsupported",
+        "note": "options are not supported yet"
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell to Close",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell to Open",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Buy to Close",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Expired",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Assigned",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Exchange or Exercise",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      }
+    ],
+    "signs": true,
+    "account_from_file_name": "_XXX(\\d{3,4})_",
+    "security_rules": [
+      {
+        "symbol_pattern": "^[A-Z0-9]{9}$",
+        "description_contains": "CD",
+        "id_type": "CUSIP",
+        "kind": "cd"
+      },
+      {
+        "symbol_pattern": "^[A-Z0-9]{9}$",
+        "id_type": "CUSIP",
+        "kind": "bond"
+      }
+    ]
+  },
+  {
+    "name": "Charles Schwab — JSON",
+    "format": "json",
+    "signature": [
+      "BrokerageTransactions",
+      "TotalTransactionsAmount"
+    ],
+    "records": "BrokerageTransactions",
+    "fields": {
+      "date": "Date",
+      "action": "Action",
+      "symbol": "Symbol",
+      "description": "Description",
+      "quantity": "Quantity",
+      "price": "Price",
+      "fees": "Fees & Comm",
+      "amount": "Amount"
+    },
+    "total_field": "TotalTransactionsAmount",
+    "date_format": "MM/DD/YYYY",
+    "number_format": {
+      "decimal": ".",
+      "thousands": ",",
+      "parens_negative": true,
+      "currency_symbols": [
+        "$"
+      ]
+    },
+    "actions": [
+      {
+        "match_type": "equals",
+        "text": "Buy",
+        "action": "buy"
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell",
+        "action": "sell",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Credit Interest",
+        "action": "interest",
+        "with_security": false
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Interest",
+        "action": "interest"
+      },
+      {
+        "match_type": "equals",
+        "text": "Bond Interest",
+        "action": "interest",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Deposit Funds",
+        "action": "sell_proceeds"
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Deposit Adj",
+        "action": "sell_quantity"
+      },
+      {
+        "match_type": "equals",
+        "text": "Qualified Dividend",
+        "action": "dividend",
+        "kind": "qualified",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Cash Dividend",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Non-Qualified Div",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Reinvest Dividend",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Reinvest Shares",
+        "action": "reinvest_shares",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Long Term Cap Gain",
+        "action": "dividend",
+        "kind": "capital_gain_long",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Short Term Cap Gain",
+        "action": "dividend",
+        "kind": "capital_gain_short",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Journal",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "MoneyLink Transfer",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Funds Received",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Wire Funds",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Service Fee",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "ADR Mgmt Fee",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Foreign Tax Paid",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Stock Split",
+        "action": "split",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Buy to Open",
+        "action": "unsupported",
+        "note": "options are not supported yet"
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell to Close",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell to Open",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Buy to Close",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Expired",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Assigned",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Exchange or Exercise",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      }
+    ],
+    "signs": true,
+    "account_from_file_name": "_XXX(\\d{3,4})_",
+    "security_rules": [
+      {
+        "symbol_pattern": "^[A-Z0-9]{9}$",
+        "description_contains": "CD",
+        "id_type": "CUSIP",
+        "kind": "cd"
+      },
+      {
+        "symbol_pattern": "^[A-Z0-9]{9}$",
+        "id_type": "CUSIP",
+        "kind": "bond"
+      }
+    ]
+  },
+  {
+    "name": "Charles Schwab — XML",
+    "format": "xml",
+    "signature": [
+      "BrokerageHistoryResponse"
+    ],
+    "records": "BrokerageHistoryResponse/BrokerageTransactions/BrokerageTransaction",
+    "fields": {
+      "date": "Date",
+      "action": "Action",
+      "symbol": "Symbol",
+      "description": "Description",
+      "quantity": "Quantity",
+      "price": "Price",
+      "fees": "FeesAndCommission",
+      "amount": "Amount"
+    },
+    "total_field": "TotalTransactionsAmount",
+    "date_format": "MM/DD/YYYY",
+    "number_format": {
+      "decimal": ".",
+      "thousands": ",",
+      "parens_negative": true,
+      "currency_symbols": [
+        "$"
+      ]
+    },
+    "actions": [
+      {
+        "match_type": "equals",
+        "text": "Buy",
+        "action": "buy"
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell",
+        "action": "sell",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Credit Interest",
+        "action": "interest",
+        "with_security": false
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Interest",
+        "action": "interest"
+      },
+      {
+        "match_type": "equals",
+        "text": "Bond Interest",
+        "action": "interest",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Deposit Funds",
+        "action": "sell_proceeds"
+      },
+      {
+        "match_type": "equals",
+        "text": "CD Deposit Adj",
+        "action": "sell_quantity"
+      },
+      {
+        "match_type": "equals",
+        "text": "Qualified Dividend",
+        "action": "dividend",
+        "kind": "qualified",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Cash Dividend",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Non-Qualified Div",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Reinvest Dividend",
+        "action": "dividend",
+        "kind": "ordinary",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Reinvest Shares",
+        "action": "reinvest_shares",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Long Term Cap Gain",
+        "action": "dividend",
+        "kind": "capital_gain_long",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Short Term Cap Gain",
+        "action": "dividend",
+        "kind": "capital_gain_short",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Journal",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "MoneyLink Transfer",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Funds Received",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Wire Funds",
+        "action": "cash",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Service Fee",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "ADR Mgmt Fee",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Foreign Tax Paid",
+        "action": "fee",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Stock Split",
+        "action": "split",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Buy to Open",
+        "action": "unsupported",
+        "note": "options are not supported yet"
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell to Close",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Sell to Open",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Buy to Close",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Expired",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Assigned",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      },
+      {
+        "match_type": "equals",
+        "text": "Exchange or Exercise",
+        "action": "unsupported",
+        "note": "options are not supported yet",
+        "unverified": true
+      }
+    ],
+    "signs": true,
+    "account_from_file_name": "_XXX(\\d{3,4})_",
+    "security_rules": [
+      {
+        "symbol_pattern": "^[A-Z0-9]{9}$",
+        "description_contains": "CD",
+        "id_type": "CUSIP",
+        "kind": "cd"
+      },
+      {
+        "symbol_pattern": "^[A-Z0-9]{9}$",
+        "id_type": "CUSIP",
+        "kind": "bond"
+      }
+    ]
+  }
+]

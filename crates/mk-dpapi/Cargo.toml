@@ -1,0 +1,33 @@
+[package]
+name = "mk-dpapi"
+description = "MoneyKeep: the capture server's inbox key sealed with Windows DPAPI (CryptProtectData / CryptUnprotectData for this computer). The workspace's one small foreign-function boundary; elsewhere it answers \"Windows only\"."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# upgrade-resilience-1 U1.6: the Windows API itself, not PowerShell. windows-sys (MIT OR
+# Apache-2.0) is already in the tree (through windows-service and others); only the two
+# features DPAPI needs.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
+# The workspace's lints, with `unsafe_code` denied instead of forbidden so that this
+# crate's one Windows module may allow it (every other crate keeps `forbid`).
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+indexing_slicing = "warn"
+float_arithmetic = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"

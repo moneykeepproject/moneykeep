@@ -1,0 +1,34 @@
+/target
+*.moneykeep
+*.moneykeep-journal
+*.moneykeep-wal
+*.moneykeep-shm
+.DS_Store
+
+# Reference documents (third-party copyright; never commit)
+/OFX-*.pdf
+/references/
+
+# Trunk output of the phone client
+/apps/moneykeep-capture/dist/
+
+# cargo xtask release and installer output
+/dist/
+
+# git bundles (repository transfers)
+*.bundle
+
+# Book side files (security-review-1 L10): the previous version kept on save and
+# half-written temporary copies.
+*.moneykeep.prev
+*.moneykeep.tmp-*
+
+# Keys and certificates are never committed (security-review-1 L10). Test keys
+# made for the tests live under a tests/fixtures folder and are listed here.
+*.pfx
+*.p12
+*.p8
+*.pem
+*.key
+!/apps/moneykeep-server/tests/fixtures/test-rsa-a.p8
+!/apps/moneykeep-server/tests/fixtures/test-rsa-b.p8

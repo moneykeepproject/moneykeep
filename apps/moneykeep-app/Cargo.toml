@@ -1,0 +1,36 @@
+[package]
+name = "moneykeep-app"
+description = "MoneyKeep (Apps for Financial Management): desktop app: the window from mk-views, file dialogs, drag and drop, per-user config, worker thread."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "moneykeep-app"
+path = "src/main.rs"
+
+[dependencies]
+directories.workspace = true
+fontdb.workspace = true
+slint = { workspace = true, features = ["unstable-winit-030"] }
+# Copied text to the system clipboard (app-desktop.md revision 30).
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
+mk-commands.workspace = true
+mk-connect.workspace = true
+mk-control.workspace = true
+mk-core.workspace = true
+mk-ui.workspace = true
+mk-views.workspace = true
+mk-watch.workspace = true
+rfd.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

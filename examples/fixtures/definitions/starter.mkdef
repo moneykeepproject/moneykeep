@@ -1,0 +1,48 @@
+# A hand-written definition.
+moneykeep_definition = 1
+id = "org.example.starter"
+version = "1.0.0"
+name = "Starter kit"
+description = """
+Broker layout, two categories and a rule.
+"""
+authors = ["Jane Doe"]
+license = "CC0-1.0"
+homepage = "https://example.org/mkdef"
+created = 2026-10-20
+tags = ["broker", "usa"]
+
+[[investment_profile]]
+key = "my-broker"
+name = "My broker JSON"
+format = "json"
+signature = ["tradeDate", "activity"]
+records = "data.transactions"
+date_format = "MM/DD/YYYY"
+fields = { date = "tradeDate", action = "activity", symbol = "symbol", quantity = "shares", price = "price", amount = "netAmount" }
+[[investment_profile.actions]]
+match_type = "equals"
+text = "Bought"
+action = "buy"
+
+[[category]]
+key = "food"
+path = "Expenses:Food"
+type = "expense"
+
+[[category]]
+key = "coffee"
+path = "Expenses:Food:Coffee"
+type = "expense"
+description = "Cafés and coffee beans"
+
+[[rule]]
+key = "coffee"
+name = "Coffee shops"
+[[rule.conditions]]
+field = "payee"
+op = "contains"
+value = "coffee"
+[[rule.actions]]
+action = "set_account"
+account = "Expenses:Food:Coffee"

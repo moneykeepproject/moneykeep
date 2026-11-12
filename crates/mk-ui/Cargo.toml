@@ -1,0 +1,36 @@
+[package]
+name = "mk-ui"
+description = "MoneyKeep UI controller: application state and view models for the Slint views in mk-views (ui-slint.md revision 2). No toolkit; talks to the book only through registry commands; no file or network IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+mk-capture-api.workspace = true
+mk-core.workspace = true
+png.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# QR codes for pairing a phone (mobile-capture.md revision 2 B7; ISO/IEC 18004).
+qrcodegen = "1.8"
+
+[dev-dependencies]
+# Decodes the pairing QR code in tests (mobile-capture.md AT26).
+rqrr = "0.10"
+# Phone capture (revision 28, AT179): the real capture server on 127.0.0.1 and the
+# desktop's fetcher.
+mk-connect.workspace = true
+moneykeep-server = { path = "../../apps/moneykeep-server" }
+mk-commands.workspace = true
+mk-import.workspace = true
+mk-store.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

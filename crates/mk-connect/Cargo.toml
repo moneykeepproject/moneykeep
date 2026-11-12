@@ -1,0 +1,40 @@
+[package]
+name = "mk-connect"
+description = "MoneyKeep connectivity: the only network-capable crate. HTTPS requests for bank feeds (allowed hosts, redirects, size limits, OS trust store) and the OS credential store."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+mk-commands.workspace = true
+mk-core.workspace = true
+# Phone capture setup: the capture server's data folder and the helper's JSON.
+directories.workspace = true
+serde_json.workspace = true
+# security-review-1 A1, A3: the desktop token is made here and only its SHA-256
+# goes to the helper, with the plan's SHA-256.
+getrandom.workspace = true
+sha2.workspace = true
+time = { workspace = true, features = ["local-offset"] }
+# HTTPS: ureq over rustls with the ring provider; roots from the operating system's
+# trust store via rustls-native-certs (no bundled root store).
+ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider"] }
+rustls-native-certs = "0.8"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+# Credentials outside the book: Keychain, Credential Manager, Secret Service (pure-Rust D-Bus).
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
+
+[dev-dependencies]
+# Phone capture tests run the real capture server on 127.0.0.1.
+moneykeep-server = { path = "../../apps/moneykeep-server" }
+mk-capture-api.workspace = true
+mk-import.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,185 @@
+// The phone capture app's window (ui-slint.md revision 2, mobile-capture.md): one
+// page at a time, its dialogs and bottom sheets, the menu overlay and tooltips.
+// The pages are built by the phone app with mk-ui's page builder, the same
+// components as the desktop draw them.
+//
+// The frame (mobile-capture.md revision 7): a top bar that stays put (the page's
+// toolbar items: back arrow, title, status light, menu), one column at most
+// 480 px wide with 16 px side margins, and a bar fixed to the bottom (the page's
+// footer sections) above the system's safe area. Touch sizes throughout
+// (`Theme.touch`: 48 px tap targets, 52 px fields, 16 px text).
+//
+// Revision 9: the window fills the browser's whole visible area at any size (no
+// minimum size of its own: on the web a window's minimum becomes the canvas's CSS
+// minimum and would push the page past the screen). The tab bar sits at the very
+// bottom, under the footer; the top bar's background reaches under the status bar
+// inset and the tab bar's (or the footer's) under the bottom inset, their content
+// inside the safe area. The web page passes the insets in `inset-top` and
+// `inset-bottom` (Slint's web backend reports none).
+
+import { ScrollView, Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { PageVm, DialogVm, E, Act, Keys } from "vm.slint";
+import { Overlay, MenuOverlay, TipBubble, TabButton } from "widgets.slint";
+import { Sections, DialogView, SheetView } from "blocks.slint";
+import { ItemView } from "item.slint";
+
+export component PhoneWindow inherits Window {
+    title: "MoneyKeep capture";
+    preferred-width: 390px;
+    preferred-height: 780px;
+    background: Theme.page;
+    default-font-size: Theme.body-size;
+    in property <PageVm> page;
+    in property <[DialogVm]> dialogs;
+    in property <int> focus-root: 0;
+    // 0 follow the system, 1 light, 2 dark (screenshots for review).
+    in property <int> theme-choice: 0;
+    changed theme-choice => { apply-theme(); }
+    function apply-theme() {
+        Theme.choice = theme-choice;
+        Palette.color-scheme = theme-choice == 1 ? ColorScheme.light : theme-choice == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
+    init => {
+        Theme.touch = true;
+        apply-theme();
+        keys.focus();
+    }
+    changed focus-root => { keys.focus(); }
+    // The safe-area insets the web page reads from CSS `env(safe-area-inset-*)`.
+    in property <length> inset-top: 0px;
+    in property <length> inset-bottom: 0px;
+    property <length> safe-top: max(root.safe-area-insets.top, inset-top);
+    property <length> safe-bottom: max(root.safe-area-insets.bottom, inset-bottom);
+
+    keys := FocusScope {
+        // A click on empty space gives the window its keys back.
+        focus-on-click: true;
+        key-pressed(e) => {
+            if e.text == Key.Escape && Act.tip != "" {
+                Act.tip = "";
+                return accept;
+            }
+            if Act.key("\n" + Keys.name(e)) { return accept; }
+            reject
+        }
+        VerticalLayout {
+            if page.toolbar.length > 0: bar := Rectangle {
+                height: 56px + safe-top;
+                background: Theme.surface;
+                accessible-role: none;
+                // The column's width, centred (placed, so the window's own size
+                // never depends on it).
+                HorizontalLayout {
+                    x: max(0px, (bar.width - 480px) / 2);
+                    y: safe-top;
+                    width: min(480px, bar.width);
+                    height: 56px;
+                    padding-left: Theme.s2;
+                    padding-right: Theme.s2;
+                    spacing: Theme.s1;
+                    for it in page.toolbar: ItemView { item: it; in-row: true; }
+                }
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: Theme.border;
+                }
+            }
+            sv := ScrollView {
+                vertical-stretch: 1;
+                content-width: sv.visible-width;
+                content-height: max(col.preferred-height, sv.visible-height);
+                // The column: at most 480 px, centred, 16 px side margins.
+                col := VerticalLayout {
+                    width: sv.visible-width;
+                    padding-left: max(0px, (sv.visible-width - 480px) / 2) + Theme.s4;
+                    padding-right: max(0px, (sv.visible-width - 480px) / 2) + Theme.s4;
+                    padding-top: Theme.s4;
+                    padding-bottom: Theme.s4;
+                    spacing: Theme.s3;
+                    alignment: start;
+                    Sections {
+                        spacing: Theme.s3;
+                        sections: page.sections;
+                    }
+                }
+            }
+            if page.footer.length > 0: foot := Rectangle {
+                background: Theme.surface;
+                height: fl.min-height;
+                fl := VerticalLayout {
+                    x: max(0px, (foot.width - 480px) / 2);
+                    y: 0;
+                    width: min(480px, foot.width);
+                    padding-left: Theme.s4;
+                    padding-right: Theme.s4;
+                    padding-top: Theme.s3;
+                    padding-bottom: Theme.s3 + (page.tabs.length > 0 ? 0px : safe-bottom);
+                    Sections {
+                        spacing: Theme.s2;
+                        sections: page.footer;
+                    }
+                }
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: Theme.border;
+                }
+            }
+            // The tab bar: 56 px plus the bottom inset, full width, a hairline on
+            // top, its tabs in the centred column.
+            if page.tabs.length > 0: tabbar := Rectangle {
+                height: 56px + safe-bottom;
+                background: Theme.surface;
+                accessible-role: none;
+                HorizontalLayout {
+                    x: max(0px, (tabbar.width - 480px) / 2);
+                    y: 0;
+                    width: min(480px, tabbar.width);
+                    height: 56px;
+                    for t in page.tabs: TabButton {
+                        text: t.text;
+                        icon: t.icon;
+                        name: t.label;
+                        aid: "tab|" + t.id;
+                        selected: t.checked;
+                        count: t.number;
+                        clicked => { Act.act(t.id, E.click, ""); }
+                    }
+                }
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: Theme.border;
+                }
+            }
+        }
+        for d in dialogs: Rectangle {
+            width: root.width;
+            height: root.height;
+            if d.sheet == 0: DialogView {
+                width: root.width;
+                height: root.height;
+                dialog: d;
+            }
+            if d.sheet != 0: SheetView {
+                width: root.width;
+                height: root.height;
+                dialog: d;
+                safe-bottom: safe-bottom;
+            }
+        }
+        MenuOverlay {
+            width: root.width;
+            height: root.height;
+            chosen(id, i) => {
+                let kind = Overlay.kind;
+                let text = Overlay.options[i];
+                Overlay.close();
+                Act.act(id, kind == 3 ? E.secondary : E.select, kind == 1 ? "=" + text : i);
+            }
+        }
+        TipBubble { area-width: root.width; area-height: root.height; }
+    }
+}

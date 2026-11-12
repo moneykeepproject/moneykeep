@@ -1,0 +1,38 @@
+//! The reports offered (reports.md).
+
+/// (command name, title)
+pub(crate) const REPORTS: [(&str, &str); 30] = [
+    ("spending", "Spending"),
+    ("income_expense", "Income & expenses"),
+    ("net_worth", "Net worth"),
+    ("cash_flow", "Cash flow"),
+    ("payees", "Payees"),
+    ("tax_summary", "Tax summary"),
+    ("holdings", "Holdings"),
+    ("realized_gains", "Realized gains"),
+    ("investment_income", "Investment income"),
+    ("performance", "Performance"),
+    ("balance_sheet", "Balance sheet"),
+    ("ar_aging", "A/R aging"),
+    ("customer_balances", "Customer balances"),
+    ("open_invoices", "Open invoices"),
+    ("sales_by_customer", "Sales by customer"),
+    ("sales_by_item", "Sales by item"),
+    ("sales_tax_liability", "Sales tax liability"),
+    ("ap_aging", "A/P aging"),
+    ("vendor_balances", "Vendor balances"),
+    ("unpaid_bills", "Unpaid bills"),
+    ("expenses_by_vendor", "Expenses by vendor"),
+    ("open_purchase_orders", "Open purchase orders"),
+    ("check_register", "Check register"),
+    ("1099", "1099 summary"),
+    ("profit_loss", "Profit and loss"),
+    ("balance_sheet_by_fund", "Balance sheet by fund"),
+    ("statement_of_activities", "Statement of activities"),
+    (
+        "statement_of_financial_position",
+        "Statement of financial position",
+    ),
+    ("functional_expenses", "Functional expenses"),
+    ("fund_activity", "Fund activity"),
+];

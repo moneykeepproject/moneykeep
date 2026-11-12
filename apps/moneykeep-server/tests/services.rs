@@ -2178,6 +2178,8 @@ fn snapshot(dir: &Path) -> Vec<(String, Vec<u8>)> {
 /// capture on ports 15443 and 15080, a plain (pre-L5) inbox key, one phone paired
 /// over Wi-Fi and one expense waiting in the inbox, and the Wi-Fi certificate.
 fn old_user_folder(old: &Path) {
+    // As before L5 on every system: a plain inbox.key, never the real keychain or DPAPI.
+    moneykeep_server::store::without_platform_sealer();
     std::fs::create_dir_all(old).unwrap();
     let c = moneykeep_server::Config {
         wifi_address: "192.168.1.20".into(),

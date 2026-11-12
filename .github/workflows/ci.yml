@@ -14,11 +14,15 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Linux libraries (fontconfig for the UI's fonts)
+      - name: Linux libraries and the Inter font (UI tests)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libfontconfig1-dev
+          sudo apt-get install -y --no-install-recommends libfontconfig1-dev fonts-inter
+          # The UI layout tests were written against Inter as the default sans-serif.
+          sudo cp scripts/ci/56-prefer-inter.conf /etc/fonts/conf.d/
+          fc-cache -f >/dev/null
+          fc-match sans-serif
       - name: Rust toolchain (1.97.0, rustfmt, clippy)
         shell: bash
         # Pinned: CI's clippy must match the version the code was checked with.

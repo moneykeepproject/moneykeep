@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch (or pull request) cancels this run: the free plan runs
+# few jobs at once, and a superseded run would hold a slot for an hour.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest

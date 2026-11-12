@@ -27,7 +27,8 @@ fn mac6_server_agent_plist() {
     let args: Vec<String> = [exe, "service-run", "--data", data, "--key-file"]
         .map(str::to_owned)
         .to_vec();
-    let log = Path::new(data).join(macos::SERVER_LOG);
+    // A Mac path on every system (`Path::join` would add `\` on Windows).
+    let log = PathBuf::from(format!("{data}/{}", macos::SERVER_LOG));
     let text = macos::agent_plist(services::SERVER_LABEL, &args, &log);
     let want = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">

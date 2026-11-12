@@ -764,9 +764,14 @@ impl Backend for WorkerBackend {
     }
 
     fn is_protected_file(&self, path: &str) -> Option<bool> {
-        mk_commands::book_kind(std::path::Path::new(path))
-            .ok()
-            .map(|k| k == BookKind::Encrypted)
+        match mk_commands::book_kind(std::path::Path::new(path)) {
+            Ok(kind) => Some(kind == BookKind::Encrypted),
+            // Windows: an open encrypted book's lock covers its first bytes. Only an
+            // encrypted book holds that lock (plain books use SQLite's own locks), so
+            // the file is protected; opening it then says the book is in use.
+            Err(e) if e.code() == "book_in_use" => Some(true),
+            Err(_) => None,
+        }
     }
 
     fn protection(&self) -> (bool, bool) {

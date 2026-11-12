@@ -634,7 +634,9 @@ fn update_guidance(service_path: Option<&str>, target: &std::path::Path) -> Stri
     let in_build = service_path.is_some_and(|p| {
         let p = std::path::Path::new(p);
         let canon = |x: &std::path::Path| x.canonicalize().unwrap_or_else(|_| x.to_path_buf());
-        canon(p).starts_with(canon(target))
+        // Both as given, too: on Windows a path that can't be canonicalized (a missing
+        // program) keeps its plain form while the target gains the `\\?\` prefix.
+        canon(p).starts_with(canon(target)) || p.starts_with(target)
     });
     if in_build {
         format!(

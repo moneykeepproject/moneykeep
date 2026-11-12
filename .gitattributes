@@ -1,0 +1,25 @@
+# Source, scripts and workflows check out with LF on every system, Windows included
+# (core.autocrlf would otherwise give CRLF, and the tools and tests read these files line
+# by line).
+*.rs     text eol=lf
+*.toml   text eol=lf
+*.lock   text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.json   text eol=lf
+*.sh     text eol=lf
+*.ps1    text eol=lf
+*.nsi    text eol=lf
+*.plist  text eol=lf
+*.in     text eol=lf
+*.slint  text eol=lf
+*.js     text eol=lf
+*.mjs    text eol=lf
+*.html   text eol=lf
+*.svg    text eol=lf
+
+# Bank-file fixtures keep their bytes exactly as committed (some have CRLF, as banks send).
+*.ofx -text
+*.qfx -text
+*.qif -text

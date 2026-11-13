@@ -3982,6 +3982,25 @@ pub mod windows {
         .any(|w| e.contains(w))
     }
 
+    /// Whether `program` is Windows PowerShell (`powershell` / `powershell.exe`).
+    fn is_windows_powershell(program: &Path) -> bool {
+        program
+            .file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase())
+            .is_some_and(|n| n == "powershell" || n == "powershell.exe")
+    }
+
+    /// Windows PowerShell starts without the caller's `PSModulePath`. Started from
+    /// PowerShell 7 (a pwsh window, or anything run from one), it inherits PowerShell
+    /// 7's module folders, can't load its own built-in modules and fails on
+    /// `Set-Acl`/`Get-Acl` ("the module could not be loaded"); without the variable it
+    /// uses its default folders.
+    pub fn without_ps7_modules(cmd: &mut std::process::Command, program: &Path) {
+        if is_windows_powershell(program) {
+            cmd.env_remove("PSModulePath");
+        }
+    }
+
     /// A failed PowerShell step's error, saying so when Windows blocked it.
     fn ps_error(program: &Path, text: String) -> String {
         let is_ps = program
@@ -4527,8 +4546,9 @@ pub mod windows {
             }
 
             fn run_hidden(program: &Path, args: &[&str]) -> Result<std::process::Output, String> {
-                std::process::Command::new(program)
-                    .args(args)
+                let mut cmd = std::process::Command::new(program);
+                without_ps7_modules(&mut cmd, program);
+                cmd.args(args)
                     .creation_flags(CREATE_NO_WINDOW)
                     .output()
                     .map_err(|e| format!("cannot run {}: {e}", program.display()))
@@ -4540,7 +4560,9 @@ pub mod windows {
                 input: &[u8],
             ) -> Result<std::process::Output, String> {
                 use std::io::Write;
-                let mut child = std::process::Command::new(program)
+                let mut cmd = std::process::Command::new(program);
+                without_ps7_modules(&mut cmd, program);
+                let mut child = cmd
                     .args(args)
                     .creation_flags(CREATE_NO_WINDOW)
                     .stdin(std::process::Stdio::piped())
@@ -4657,6 +4679,27 @@ pub mod windows {
     mod tests {
         #![allow(clippy::unwrap_used)]
         use super::*;
+
+        /// Windows PowerShell never inherits PowerShell 7's module path; other
+        /// programs keep their environment.
+        #[test]
+        fn windows_powershell_starts_without_ps7_modules() {
+            for name in ["powershell", "powershell.exe", "PowerShell.EXE"] {
+                let mut cmd = std::process::Command::new(name);
+                without_ps7_modules(&mut cmd, Path::new(name));
+                let cleared: Vec<_> = cmd.get_envs().collect();
+                assert_eq!(
+                    cleared,
+                    [(std::ffi::OsStr::new("PSModulePath"), None)],
+                    "{name}"
+                );
+            }
+            for name in ["sc.exe", "pwsh", "cloudflared.exe"] {
+                let mut cmd = std::process::Command::new(name);
+                without_ps7_modules(&mut cmd, Path::new(name));
+                assert_eq!(cmd.get_envs().count(), 0, "{name}");
+            }
+        }
 
         /// Outside Windows the service logic is compiled and answers safely: no
         /// service, and every action says "Windows only".

@@ -667,7 +667,15 @@ fn blocks(app: &mut App, ui: &mut Ui, d: &Value, id: &str) {
                 .cloned();
             let fit = b.and_then(|b| {
                 let data = shown_data(app, &dash, &b);
-                content_rows(&b, &data)
+                // The Attention block also draws the backup notices and schedule
+                // failures, which are not among its items.
+                let extra = if b.str("type") == "attention" {
+                    let cols = if narrow { BOARD_COLUMNS } else { to_i(c.w) };
+                    attention_extra_lines(app, cols * colw + (cols - 1) * GAP - 24)
+                } else {
+                    0
+                };
+                content_rows(&b, &data, extra)
             });
             let mut c = *c;
             if let Some(rows) = fit {
@@ -773,9 +781,25 @@ fn chart_rows(b: &Value, data: &Value, body_w: i32) -> Option<u32> {
     u32::try_from(rows).ok()
 }
 
+/// Lines the Attention block draws besides its items at `body_w` pixels wide: each
+/// backup notice's wrapped text and its row of buttons (backups.md: a folder path can
+/// make the text long), and each schedule failure.
+fn attention_extra_lines(app: &mut App, body_w: i32) -> usize {
+    // About 7 px a character in the body text; never fewer than 20 a line.
+    let per_line = usize::try_from(body_w / 7).unwrap_or(0).max(20);
+    let wrapped = |t: &str| t.chars().count().div_ceil(per_line).max(1);
+    let notices: usize = super::backups::notices(app)
+        .iter()
+        .map(|n| wrapped(&n.text) + usize::from(!n.buttons.is_empty()))
+        .sum();
+    let failures: usize = app.schedule_failures.iter().map(|f| wrapped(f)).sum();
+    notices + failures
+}
+
 /// Grid rows a list block needs for its content (title bar, padding and one line
-/// per row); `None` for blocks drawn to their cell (charts, shortcuts …).
-fn content_rows(b: &Value, data: &Value) -> Option<u32> {
+/// per row, plus `extra` lines drawn besides its rows); `None` for blocks drawn to
+/// their cell (charts, shortcuts …).
+fn content_rows(b: &Value, data: &Value, extra: usize) -> Option<u32> {
     if data.str("status") != "ok" {
         return Some(1);
     }
@@ -790,7 +814,7 @@ fn content_rows(b: &Value, data: &Value) -> Option<u32> {
                     .sum::<usize>()
                 + usize::from(data.at("missing").as_u64().unwrap_or(0) > 0)
         }
-        "attention" => data.list("items").len().max(1),
+        "attention" => (data.list("items").len() + extra).max(1),
         "scheduled" | "account_transactions" => data.list("rows").len().max(1),
         _ => return None,
     };

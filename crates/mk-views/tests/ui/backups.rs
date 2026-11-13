@@ -517,7 +517,13 @@ fn backups_bk17_a_chosen_folder_is_tested() {
 #[test]
 fn backups_bk18_windows_blocking_message_and_buttons() {
     let dir = tempfile::tempdir().unwrap();
-    let docs = dir.path().join("Documents");
+    // A long path, as on Windows (C:\Users\…\AppData\Local\Temp\…, or under OneDrive):
+    // the notice wraps over several lines and its buttons must still show.
+    let docs = dir
+        .path()
+        .join("OneDrive - A Rather Long Organisation Name")
+        .join("Shared household papers and records")
+        .join("Documents");
     let folder = docs.join("MoneyKeep Backups");
     let mut cfg = config(dir.path());
     cfg.backup.folder = Some(folder.to_str().unwrap().to_owned());

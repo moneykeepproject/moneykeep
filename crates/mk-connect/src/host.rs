@@ -286,8 +286,12 @@ impl SystemHost {
     fn elevated(&self, args: &[String]) -> Result<(), String> {
         let exe = self.exe()?;
         if cfg!(windows) {
-            let out = self
-                .command(Path::new("powershell"))
+            let mut cmd = self.command(Path::new("powershell"));
+            // Windows PowerShell can't load its own modules with PowerShell 7's
+            // PSModulePath (MoneyKeep started from a pwsh window); it has its defaults
+            // without the variable.
+            cmd.env_remove("PSModulePath");
+            let out = cmd
                 .args([
                     "-NoProfile",
                     "-NonInteractive",

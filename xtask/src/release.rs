@@ -785,10 +785,10 @@ mod tests {
                 .join(format!("MoneyKeep-{}", env!("CARGO_PKG_VERSION")))
         );
         // release-prep.md §3.
-        assert!(p.folder.ends_with("MoneyKeep-0.1.0"), "{p:?}");
+        assert!(p.folder.ends_with("MoneyKeep-0.1.1"), "{p:?}");
         assert_eq!(
             setup_name(&p.version),
-            "moneykeep-0.1.0-windows-x64-setup.exe"
+            "moneykeep-0.1.1-windows-x64-setup.exe"
         );
         let names: Vec<&str> = p.files.iter().map(|(_, n)| n.as_str()).collect();
         for name in ["moneykeep-app", "moneykeep-server", "moneykeep", "keep-mcp"] {
@@ -855,16 +855,17 @@ mod tests {
         assert_eq!(setup_name("0.9.3"), "moneykeep-0.9.3-windows-x64-setup.exe");
         assert_eq!(
             setup_name(env!("CARGO_PKG_VERSION")),
-            "moneykeep-0.1.0-windows-x64-setup.exe"
+            "moneykeep-0.1.1-windows-x64-setup.exe"
         );
     }
 
-    /// release-prep.md §3 (revised 2026-11-11): the workspace version is 0.1.0,
-    /// Windows' four numbers are 0.1.0.0.
+    /// release-prep.md §3 (revised 2026-11-11): the first release was 0.1.0. Since
+    /// 2026-11-13 (owner decision) the workspace version is 0.1.1, the release that adds
+    /// the Mac build; Windows' four numbers are 0.1.1.0.
     #[test]
     fn rp_version_is_the_first_release() {
-        assert_eq!(env!("CARGO_PKG_VERSION"), "0.1.0");
-        assert_eq!(version_quad(env!("CARGO_PKG_VERSION")).unwrap(), "0.1.0.0");
+        assert_eq!(env!("CARGO_PKG_VERSION"), "0.1.1");
+        assert_eq!(version_quad(env!("CARGO_PKG_VERSION")).unwrap(), "0.1.1.0");
         assert_eq!(
             env!("CARGO_PKG_REPOSITORY"),
             "https://github.com/moneykeepproject/moneykeep"
@@ -1107,7 +1108,7 @@ mod tests {
     fn rp7_dry_run_lists_the_launcher_setup_name_and_the_checksums() {
         assert_eq!(
             installer_outputs(env!("CARGO_PKG_VERSION")),
-            ["moneykeep-0.1.0-windows-x64-setup.exe", "SHA256SUMS.txt"]
+            ["moneykeep-0.1.1-windows-x64-setup.exe", "SHA256SUMS.txt"]
         );
         // The launcher's asset name: <app>-<version>-<os>-<arch>-setup.exe, lower case.
         let name = setup_name("1.2.3-rc.4");

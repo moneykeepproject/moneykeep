@@ -95,9 +95,12 @@ rustup target list --installed  # includes aarch64-apple-darwin and x86_64-apple
 1. In a browser, signed in to GitHub as an organisation owner: organisation
    `moneykeepproject` > **Settings** > **Actions** > **Runners** > **New runner** >
    **New self-hosted runner**.
-2. Choose **macOS** and architecture **ARM64**. GitHub shows the commands to download
-   and configure the runner. Run them as `mkbuild` in Terminal, in a folder such as
-   `~/actions-runner`.
+2. Choose **macOS** and architecture **ARM64**, not x64. GitHub shows the commands to
+   download and configure the runner. Run them as `mkbuild` in Terminal, in a folder such
+   as `~/actions-runner`. First check that Terminal isn't running under Rosetta:
+   `uname -m` must print `arm64`. An x64 runner registers with the label `X64`, and the
+   release jobs, which ask for `ARM64`, then wait for it forever, even after you approve
+   them.
 3. When you run `./config.sh`, answer the questions like this:
    - runner group: `mac-release` (if you have already made it in step 6; otherwise
      `Default`, and move the runner in step 6);
@@ -114,7 +117,13 @@ rustup target list --installed  # includes aarch64-apple-darwin and x86_64-apple
    ```
 
 **Check:** on GitHub, Organisation > Settings > Actions > Runners lists `mk-mac-1` as
-**Idle**, with the labels `self-hosted`, `macOS`, `ARM64` and `mk-mac`.
+**Idle**, with the labels `self-hosted`, `macOS`, `ARM64` and `mk-mac`. If it shows `X64`,
+remove it (`./svc.sh stop`, `./svc.sh uninstall`, then `./config.sh remove` with the token
+from the runner's **Remove** page) and register it again from the ARM64 download.
+
+**If an approved Mac job stays queued:** check the runner's labels (above), that it is
+**Idle**, and that the `mac-release` group allows public repositories, the job's repository and
+its workflow (step 6a).
 
 ## 6. A runner group for the Mac, and the approval environment
 

@@ -1,7 +1,7 @@
 # Known limits
 
-What MoneyKeep 0.1.1 doesn't do yet, or doesn't do on purpose. This list is updated
-with each release. For what it does do, see the [release notes](release-notes/0.1.1.md).
+What MoneyKeep 0.1.2 doesn't do yet, or doesn't do on purpose. This list is updated
+with each release. For what it does do, see the [release notes](release-notes/0.1.2.md).
 
 ## Early software
 

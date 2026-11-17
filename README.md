@@ -9,7 +9,7 @@ businesses, on one double-entry ledger.
 **Status:** early software, first public release. Back up anything you try it on, and
 see the known limits below.
 
-Version 0.1.2: [release notes](docs/release-notes/0.1.2.md) · [known limits](docs/known-limits.md).
+Version 0.1.3: [release notes](docs/release-notes/0.1.3.md) · [known limits](docs/known-limits.md).
 
 MoneyKeep is an independent project and is not affiliated with or endorsed by any
 other software vendor. See [NOTICE](NOTICE).

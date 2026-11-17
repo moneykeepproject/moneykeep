@@ -1997,6 +1997,14 @@ fn plural(n: u64, one: &str, many: &str) -> String {
 fn attention(ctx: &Ctx<'_>, today: Date) -> CommandResult<Value> {
     let null = Value::Null;
     let mut items = Vec::new();
+    let feeds = is_module_enabled(ctx.tx, "bank-feeds")?
+        || is_module_enabled(ctx.tx, "payment-processing")?
+        || is_module_enabled(ctx.tx, "investments")?;
+    let feed_items = if feeds {
+        arr(&call(ctx, "connect.attention", json!({"today": today}))?)
+    } else {
+        Vec::new()
+    };
     for b in arr(&call(ctx, "import.list", json!({"status": "staged"}))?) {
         let source = if s(&b, "source").is_empty() {
             "file"
@@ -2004,13 +2012,32 @@ fn attention(ctx: &Ctx<'_>, today: Date) -> CommandResult<Value> {
             s(&b, "source")
         };
         let id = s(&b, "id").to_owned();
-        items.push(item(
-            format!(
-                "Import waiting for review: {source} ({} rows)",
-                b.get("rows").cloned().unwrap_or(json!(0))
-            ),
-            json!({"screen": "import", "batch": id}),
-        ));
+        // app-desktop.md revision 43: at most one line per staged batch, only while
+        // it holds something for the user, and not when the feed's own line lists it.
+        let count = |k: &str| b.get(k).and_then(Value::as_u64).unwrap_or(0);
+        let on_feed_line = feed_items
+            .iter()
+            .any(|it| s(it, "kind") == "batch" && s(it, "batch") == id);
+        let what = if on_feed_line {
+            None
+        } else if count("to_review") > 0 {
+            Some(format!(
+                "{} to review",
+                plural(count("to_review"), "row", "rows")
+            ))
+        } else if count("rows") + count("inv_rows") > 0 {
+            Some("nothing new to add".to_owned())
+        } else if crate::connect::holdings_differ(ctx, &id)? {
+            Some("holdings differ".to_owned())
+        } else {
+            None
+        };
+        if let Some(what) = what {
+            items.push(item(
+                format!("Import waiting for review: {source} ({what})"),
+                json!({"screen": "import", "batch": id}),
+            ));
+        }
         if let Ok(full) = call(ctx, "import.get", json!({"batch": id})) {
             let review = arr(full.get("rows").unwrap_or(&null))
                 .iter()
@@ -2158,29 +2185,24 @@ fn attention(ctx: &Ctx<'_>, today: Date) -> CommandResult<Value> {
             ));
         }
     }
-    let feeds = is_module_enabled(ctx.tx, "bank-feeds")?
-        || is_module_enabled(ctx.tx, "payment-processing")?
-        || is_module_enabled(ctx.tx, "investments")?;
-    if feeds {
-        for it in arr(&call(ctx, "connect.attention", json!({"today": today}))?) {
-            let msg = s(&it, "message").to_owned();
-            let target = match s(&it, "kind") {
-                "batch" => json!({"screen": "import", "batch": s(&it, "batch")}),
-                "clearing" | "holdings" => {
-                    json!({"screen": "register", "account": s(&it, "account")})
-                }
-                _ => json!({"screen": "settings", "section": "Connections"}),
-            };
-            let mut v = item(msg, target);
-            // connectivity.md revision 5: connection notices carry `connect.dismiss`'s
-            // arguments.
-            if it.get("dismissible") == Some(&json!(true))
-                && let (Some(o), Some(d)) = (v.as_object_mut(), it.get("dismiss"))
-            {
-                o.insert("dismiss".into(), d.clone());
+    for it in feed_items {
+        let msg = s(&it, "message").to_owned();
+        let target = match s(&it, "kind") {
+            "batch" => json!({"screen": "import", "batch": s(&it, "batch")}),
+            "clearing" | "holdings" => {
+                json!({"screen": "register", "account": s(&it, "account")})
             }
-            items.push(v);
+            _ => json!({"screen": "settings", "section": "Connections"}),
+        };
+        let mut v = item(msg, target);
+        // connectivity.md revision 5: connection notices carry `connect.dismiss`'s
+        // arguments.
+        if it.get("dismissible") == Some(&json!(true))
+            && let (Some(o), Some(d)) = (v.as_object_mut(), it.get("dismiss"))
+        {
+            o.insert("dismiss".into(), d.clone());
         }
+        items.push(v);
     }
     // subscriptions.md: "charged after cancelling" first, the other alerts last.
     let mut subs = crate::subscriptions::attention(ctx, today)?;

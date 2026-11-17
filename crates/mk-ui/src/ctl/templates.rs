@@ -319,11 +319,10 @@ fn logo_picture(app: &mut App, id: &str, p: &Value) -> Option<Rc<Picture>> {
                 return None;
             }
             let rgba: Vec<u8> = rgb
-                .chunks_exact(3)
-                .flat_map(|c| match c {
-                    [r, g, b] => [*r, *g, *b, 255],
-                    _ => [0, 0, 0, 255],
-                })
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .flat_map(|[r, g, b]| [*r, *g, *b, 255])
                 .collect();
             Some(Rc::new(Picture {
                 width: w,

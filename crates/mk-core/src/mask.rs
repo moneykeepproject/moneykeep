@@ -34,11 +34,8 @@ pub fn unpack(runs: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let mut out = Vec::with_capacity(LEN);
-    for pair in runs.chunks_exact(2) {
-        let (m, run) = match pair {
-            [m, run] => (*m, usize::from(*run) + 1),
-            _ => return None,
-        };
+    for [m, run] in runs.as_chunks::<2>().0 {
+        let (m, run) = (*m, usize::from(*run) + 1);
         if m > 2 || out.len() + run > LEN {
             return None;
         }

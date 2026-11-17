@@ -2879,6 +2879,50 @@ fn retire_pending(ctx: &Ctx<'_>, conn: &ConnDoc) -> CommandResult<()> {
     Ok(())
 }
 
+/// Whether a batch is the one behind an account's latest holdings check and that
+/// check does not agree (connectivity-brokerage.md revision 3): its review is where
+/// the user adds a row for the difference.
+pub(crate) fn holdings_differ(ctx: &Ctx<'_>, batch: &str) -> CommandResult<bool> {
+    for d in ctx.tx.docs(DocTable::AccountLink, None)? {
+        let Ok(l) = serde_json::from_value::<LinkDoc>(d.json) else {
+            continue;
+        };
+        let Some(h) = l.remote.as_ref().and_then(|r| r.holdings.as_ref()) else {
+            continue;
+        };
+        if h.get("batch").and_then(Value::as_str) == Some(batch)
+            && h.get("agree").and_then(Value::as_bool) == Some(false)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// connectivity-brokerage.md revision 3: every staged batch of the connection without
+/// rows (no bank rows and no investment rows) is discarded, except one behind a
+/// holdings check that does not agree. Batches with rows are never touched. Returns
+/// the discarded batches' ids.
+pub(crate) fn discard_rowless(ctx: &Ctx<'_>, conn: &ConnDoc) -> CommandResult<Vec<String>> {
+    let mut gone = Vec::new();
+    for d in ctx.tx.docs(DocTable::ImportBatch, None)? {
+        let Ok(mut b) = serde_json::from_value::<crate::import::BatchDoc>(d.json) else {
+            continue;
+        };
+        if b.status != "staged" || b.feed.as_deref() != Some(conn.id.as_str()) {
+            continue;
+        }
+        let n = crate::import::row_counts(ctx, &b.id)?;
+        if n.rows > 0 || n.inv_rows > 0 || holdings_differ(ctx, &b.id)? {
+            continue;
+        }
+        b.status = "discarded".into();
+        crate::import::save_batch(ctx, &b)?;
+        gone.push(b.id);
+    }
+    Ok(gone)
+}
+
 fn disconnect(ctx: &Ctx<'_>, a: ConnRef) -> CommandResult<Value> {
     let mut conn = find_conn(ctx, &a.connection)?;
     if let Some(r) = conn.secret_ref.take() {
@@ -2963,11 +3007,20 @@ pub(crate) fn attention(ctx: &Ctx<'_>) -> CommandResult<Value> {
             continue;
         };
         let rows = crate::import::load_rows(ctx, &b.id)?;
-        let waiting: Vec<&crate::import::RowDoc> = rows
+        // app-desktop.md revision 43: new, not skipped investment rows count as well
+        // as bank rows, in the total and per account.
+        let inv = crate::inv_import::load_rows(ctx, &b.id)?;
+        let waiting: Vec<usize> = rows
             .iter()
             .filter(|r| {
                 r.class == crate::import::Class::New && r.action != crate::import::RowAction::Skip
             })
+            .map(|r| r.section)
+            .chain(
+                inv.iter()
+                    .filter(|r| r.class == "new" && r.action != "skip")
+                    .map(|r| r.section),
+            )
             .collect();
         let n = waiting.len();
         if n == 0 {
@@ -2976,11 +3029,11 @@ pub(crate) fn attention(ctx: &Ctx<'_>) -> CommandResult<Value> {
         // connectivity.md revision 4: how many wait for each MoneyKeep account, so a
         // register can offer Review.
         let mut per: Vec<(AccountId, usize)> = Vec::new();
-        for r in &waiting {
+        for section in &waiting {
             let Some(acc) = b
                 .sections
                 .iter()
-                .find(|s| s.index == r.section)
+                .find(|s| s.index == *section)
                 .and_then(|s| s.account)
             else {
                 continue;

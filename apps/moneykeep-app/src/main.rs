@@ -8,16 +8,19 @@
 
 mod backend;
 mod config;
+mod dialogs;
 mod fonts;
 mod receipt_viewer;
 mod window;
 
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, channel};
 
+use dialogs::Ask;
 use mk_core::brand;
 use mk_ui::AppEvent;
 use mk_views::Views;
@@ -25,6 +28,9 @@ use slint::ComponentHandle as _;
 
 /// The file dialogs' name for books.
 const BOOK_FILTER: &str = "MoneyKeep book";
+
+/// A file dialog's answer, applied on a later turn of the event loop (macOS).
+type Answer = Box<dyn FnOnce(&mut DesktopApp)>;
 
 struct DesktopApp {
     /// The window with the controller (`mk_ui::ctl::App`) inside.
@@ -43,6 +49,9 @@ struct DesktopApp {
     control_host: Arc<backend::WorkerHost>,
     /// The controller's change counter last told to the control channel.
     seen_generation: u64,
+    /// File dialog answers waiting to be applied (macOS: dialogs are sheets that
+    /// answer later; see `dialogs`).
+    answers: Rc<RefCell<Vec<Answer>>>,
 }
 
 impl DesktopApp {
@@ -70,100 +79,145 @@ impl DesktopApp {
             control: None,
             control_host,
             seen_generation: 0,
+            answers: Rc::default(),
         })
+    }
+
+    /// Show a file dialog; `then` runs with what was chosen (never when nothing was).
+    /// macOS answers on a later turn of the event loop, through `answers`; elsewhere
+    /// `then` runs before this returns (see `dialogs`).
+    fn ask(
+        &mut self,
+        ask: dialogs::Ask,
+        then: impl FnOnce(&mut DesktopApp, Vec<PathBuf>) + 'static,
+    ) {
+        if !dialogs::ANSWER_LATER {
+            let picked = ask.run_blocking();
+            if !picked.is_empty() {
+                then(self, picked);
+            }
+            return;
+        }
+        let answers = Rc::clone(&self.answers);
+        let shown = ask.run_later();
+        let task = async move {
+            let picked = shown.await;
+            if !picked.is_empty() {
+                answers
+                    .borrow_mut()
+                    .push(Box::new(move |d: &mut DesktopApp| then(d, picked)));
+            }
+        };
+        if let Err(e) = slint::spawn_local(task) {
+            self.views
+                .app_mut()
+                .watch_reported(&format!("Couldn't open the file dialog: {e}"));
+        }
+    }
+
+    /// Apply the dialog answers that came back since the last turn (macOS).
+    fn apply_answers(&mut self) {
+        let answers = std::mem::take(&mut *self.answers.borrow_mut());
+        if answers.is_empty() {
+            return;
+        }
+        for answer in answers {
+            answer(self);
+        }
+        self.views.refresh();
     }
 
     fn handle(&mut self, ev: AppEvent) {
         match ev {
             AppEvent::ChooseNewBookPath { name, currency } => {
-                let file = rfd::FileDialog::new()
-                    .add_filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
-                    .set_file_name(format!("{name}.{}", brand::BOOK_EXTENSION))
-                    .save_file();
-                if let Some(p) = file.and_then(|p| p.to_str().map(str::to_owned)) {
-                    self.views.app_mut().create_book(&p, &name, &currency);
-                    self.book_path = Some(p);
-                }
+                let ask = Ask::save()
+                    .filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
+                    .file_name(format!("{name}.{}", brand::BOOK_EXTENSION));
+                self.ask(ask, move |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().create_book(&p, &name, &currency);
+                        d.book_path = Some(p);
+                    }
+                });
             }
             AppEvent::ChooseBookToOpen => {
-                let file = rfd::FileDialog::new()
-                    .add_filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
-                    .pick_file();
-                if let Some(p) = file.and_then(|p| p.to_str().map(str::to_owned)) {
-                    self.views.app_mut().open_book(&p);
-                    self.book_path = Some(p);
-                }
+                let ask = Ask::file().filter(BOOK_FILTER, &[brand::BOOK_EXTENSION]);
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().open_book(&p);
+                        d.book_path = Some(p);
+                    }
+                });
             }
             AppEvent::ChooseImportFile => {
-                let file = rfd::FileDialog::new()
-                    .add_filter(
-                        "Bank and broker files",
-                        &["ofx", "qfx", "qbo", "qif", "iif", "csv", "json", "xml"],
-                    )
-                    .pick_file();
-                if let Some(p) = file {
-                    let name = p
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("file")
-                        .to_owned();
-                    match std::fs::read(&p) {
-                        Ok(bytes) => self.views.app_mut().import_file(&name, &bytes),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Cannot read {name}: {e}")),
+                let ask = Ask::file().filter(
+                    "Bank and broker files",
+                    &["ofx", "qfx", "qbo", "qif", "iif", "csv", "json", "xml"],
+                );
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = picked.first() {
+                        let name = p
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("file")
+                            .to_owned();
+                        match std::fs::read(p) {
+                            Ok(bytes) => d.views.app_mut().import_file(&name, &bytes),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Cannot read {name}: {e}")),
+                        }
                     }
-                }
+                });
             }
             AppEvent::ChoosePriceFile => {
-                let file = rfd::FileDialog::new()
-                    .add_filter("Prices (CSV)", &["csv"])
-                    .pick_file();
-                if let Some(p) = file {
-                    let name = p
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("prices.csv")
-                        .to_owned();
-                    match std::fs::read(&p) {
-                        Ok(bytes) => self.views.app_mut().import_prices(&name, &bytes),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Cannot read {name}: {e}")),
+                let ask = Ask::file().filter("Prices (CSV)", &["csv"]);
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = picked.first() {
+                        let name = p
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("prices.csv")
+                            .to_owned();
+                        match std::fs::read(p) {
+                            Ok(bytes) => d.views.app_mut().import_prices(&name, &bytes),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Cannot read {name}: {e}")),
+                        }
                     }
-                }
+                });
             }
             AppEvent::ChooseDefinitionFile => {
-                let file = rfd::FileDialog::new()
-                    .add_filter(
-                        format!("{} definition", brand::PRODUCT),
-                        &[brand::DEFINITION_EXTENSION],
-                    )
-                    .pick_file();
-                if let Some(p) = file {
-                    let name = p
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("definition")
-                        .to_owned();
-                    match std::fs::read(&p) {
-                        Ok(bytes) => self.views.app_mut().open_definition(&name, &bytes),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Cannot read {name}: {e}")),
+                let ask = Ask::file().filter(
+                    format!("{} definition", brand::PRODUCT),
+                    &[brand::DEFINITION_EXTENSION],
+                );
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = picked.first() {
+                        let name = p
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("definition")
+                            .to_owned();
+                        match std::fs::read(p) {
+                            Ok(bytes) => d.views.app_mut().open_definition(&name, &bytes),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Cannot read {name}: {e}")),
+                        }
                     }
-                }
+                });
             }
             AppEvent::ChooseWatchFolder => {
-                if let Some(p) = rfd::FileDialog::new()
-                    .pick_folder()
-                    .and_then(|p| p.to_str().map(str::to_owned))
-                {
-                    self.views.app_mut().set_watch_folder(&p);
-                }
+                self.ask(Ask::folder(), |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().set_watch_folder(&p);
+                    }
+                });
             }
             AppEvent::Watch(on) => self.watch(on),
             AppEvent::ConfigChanged => config::save(&self.views.app_mut().config),
@@ -181,50 +235,57 @@ impl DesktopApp {
             }
             AppEvent::SaveRecoveryKey { file_name, content } => {
                 // Suggest the documents (or home) folder, not the book's folder.
-                let mut dialog = rfd::FileDialog::new().set_file_name(&file_name);
+                let mut ask = Ask::save().file_name(&file_name);
                 if let Some(dirs) = directories::UserDirs::new() {
                     let dir = dirs.document_dir().unwrap_or(dirs.home_dir()).to_path_buf();
-                    dialog = dialog.set_directory(dir);
+                    ask = ask.directory(dir);
                 }
-                if let Some(p) = dialog.save_file() {
-                    match std::fs::write(&p, content) {
-                        Ok(()) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Saved the recovery key at {}", p.display())),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
+                self.ask(ask, move |d, picked| {
+                    if let Some(p) = picked.first() {
+                        match std::fs::write(p, content) {
+                            Ok(()) => d.views.app_mut().watch_reported(&format!(
+                                "Saved the recovery key at {}",
+                                p.display()
+                            )),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
+                        }
                     }
-                }
+                });
             }
             AppEvent::ChooseUnencryptedCopyPath { file_name } => {
-                if let Some(p) = rfd::FileDialog::new()
-                    .add_filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
-                    .set_file_name(&file_name)
-                    .save_file()
-                    .and_then(|p| p.to_str().map(str::to_owned))
-                {
-                    self.views.app_mut().save_unencrypted_copy(&p);
-                }
+                let ask = Ask::save()
+                    .filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
+                    .file_name(&file_name);
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().save_unencrypted_copy(&p);
+                    }
+                });
             }
             AppEvent::SaveBytes { file_name, data } => {
-                if let Some(p) = rfd::FileDialog::new().set_file_name(&file_name).save_file() {
-                    match std::fs::write(&p, data) {
-                        Ok(()) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Saved {}", p.display())),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
+                self.ask(Ask::save().file_name(&file_name), move |d, picked| {
+                    if let Some(p) = picked.first() {
+                        match std::fs::write(p, data) {
+                            Ok(()) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Saved {}", p.display())),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
+                        }
                     }
-                }
+                });
             }
             AppEvent::SaveFilesToFolder { files } => {
-                if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                self.ask(Ask::folder(), move |d, picked| {
+                    let Some(dir) = picked.first() else {
+                        return;
+                    };
                     let mut failed = Vec::new();
                     for (name, data) in &files {
                         // Only the file name: never a path from the book.
@@ -236,80 +297,80 @@ impl DesktopApp {
                         }
                     }
                     if failed.is_empty() {
-                        self.views.app_mut().watch_reported(&format!(
+                        d.views.app_mut().watch_reported(&format!(
                             "Saved {} files in {}",
                             files.len(),
                             dir.display()
                         ));
                     } else {
-                        self.views
+                        d.views
                             .app_mut()
                             .watch_reported(&format!("Couldn't save {}", failed.join("; ")));
                     }
-                }
+                });
             }
             AppEvent::ChooseLogoFile { template } => {
-                let file = rfd::FileDialog::new()
-                    .add_filter("Logo image", &["png", "jpg", "jpeg"])
-                    .pick_file();
-                if let Some(p) = file {
-                    match std::fs::read(&p) {
-                        Ok(bytes) => self.views.app_mut().set_template_logo(&template, &bytes),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Cannot read {}: {e}", p.display())),
+                let ask = Ask::file().filter("Logo image", &["png", "jpg", "jpeg"]);
+                self.ask(ask, move |d, picked| {
+                    if let Some(p) = picked.first() {
+                        match std::fs::read(p) {
+                            Ok(bytes) => d.views.app_mut().set_template_logo(&template, &bytes),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Cannot read {}: {e}", p.display())),
+                        }
                     }
-                }
+                });
             }
             AppEvent::ChooseBookIconFile => {
-                let file = rfd::FileDialog::new()
-                    .add_filter("Picture", &["png", "jpg", "jpeg"])
-                    .pick_file();
-                if let Some(p) = file {
-                    // Larger files are refused by the command without reading them all.
-                    let too_big = std::fs::metadata(&p).is_ok_and(|m| m.len() > 2 * 1024 * 1024);
-                    let bytes = if too_big {
-                        Ok(Vec::new())
-                    } else {
-                        std::fs::read(&p)
-                    };
-                    match bytes {
-                        Ok(bytes) => self.views.app_mut().set_book_icon(&bytes),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Cannot read {}: {e}", p.display())),
+                let ask = Ask::file().filter("Picture", &["png", "jpg", "jpeg"]);
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = picked.first() {
+                        // Larger files are refused by the command without reading them all.
+                        let too_big = std::fs::metadata(p).is_ok_and(|m| m.len() > 2 * 1024 * 1024);
+                        let bytes = if too_big {
+                            Ok(Vec::new())
+                        } else {
+                            std::fs::read(p)
+                        };
+                        match bytes {
+                            Ok(bytes) => d.views.app_mut().set_book_icon(&bytes),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Cannot read {}: {e}", p.display())),
+                        }
                     }
-                }
+                });
             }
             AppEvent::ChooseReceiptFiles { target } => {
-                let files = rfd::FileDialog::new()
-                    .add_filter("Receipt", &["png", "jpg", "jpeg", "pdf", "heic", "heif"])
-                    .pick_files()
-                    .unwrap_or_default();
-                let picked: Vec<mk_ui::PickedFile> = files
-                    .iter()
-                    .map(|p| {
-                        let name = p
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("receipt")
-                            .to_owned();
-                        // Larger files are refused without reading them.
-                        let too_big =
-                            std::fs::metadata(p).is_ok_and(|m| m.len() > mk_ui::MAX_RECEIPT_BYTES);
-                        let bytes = if too_big {
-                            Err(mk_ui::TOO_BIG.to_owned())
-                        } else {
-                            std::fs::read(p).map_err(|e| format!("Cannot read the file: {e}"))
-                        };
-                        mk_ui::PickedFile { name, bytes }
-                    })
-                    .collect();
-                if !picked.is_empty() {
-                    self.views.app_mut().add_receipt_files(target, picked);
-                }
+                let ask =
+                    Ask::files().filter("Receipt", &["png", "jpg", "jpeg", "pdf", "heic", "heif"]);
+                self.ask(ask, move |d, files| {
+                    let picked: Vec<mk_ui::PickedFile> = files
+                        .iter()
+                        .map(|p| {
+                            let name = p
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("receipt")
+                                .to_owned();
+                            // Larger files are refused without reading them.
+                            let too_big = std::fs::metadata(p)
+                                .is_ok_and(|m| m.len() > mk_ui::MAX_RECEIPT_BYTES);
+                            let bytes = if too_big {
+                                Err(mk_ui::TOO_BIG.to_owned())
+                            } else {
+                                std::fs::read(p).map_err(|e| format!("Cannot read the file: {e}"))
+                            };
+                            mk_ui::PickedFile { name, bytes }
+                        })
+                        .collect();
+                    if !picked.is_empty() {
+                        d.views.app_mut().add_receipt_files(target, picked);
+                    }
+                });
             }
             AppEvent::OpenReceiptPdf { file_name, data } => {
                 match self.pdf_copies.open(&file_name, &data) {
@@ -326,20 +387,22 @@ impl DesktopApp {
                 expenses,
             } => {
                 // Cancelling the dialog, or a failed write, marks nothing.
-                if let Some(p) = rfd::FileDialog::new().set_file_name(&file_name).save_file() {
-                    match std::fs::write(&p, data) {
-                        Ok(()) => {
-                            self.views
+                self.ask(Ask::save().file_name(&file_name), move |d, picked| {
+                    if let Some(p) = picked.first() {
+                        match std::fs::write(p, data) {
+                            Ok(()) => {
+                                d.views
+                                    .app_mut()
+                                    .watch_reported(&format!("Saved {}", p.display()));
+                                d.views.app_mut().expense_report_saved(&expenses);
+                            }
+                            Err(e) => d
+                                .views
                                 .app_mut()
-                                .watch_reported(&format!("Saved {}", p.display()));
-                            self.views.app_mut().expense_report_saved(&expenses);
+                                .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
                         }
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
                     }
-                }
+                });
             }
             AppEvent::BookClosed => {
                 self.pdf_copies.clear();
@@ -366,12 +429,11 @@ impl DesktopApp {
                 }
             }
             AppEvent::ChooseBackupFolder { second } => {
-                if let Some(p) = rfd::FileDialog::new()
-                    .pick_folder()
-                    .and_then(|p| p.to_str().map(str::to_owned))
-                {
-                    self.views.app_mut().set_backup_folder(&p, second);
-                }
+                self.ask(Ask::folder(), move |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().set_backup_folder(&p, second);
+                    }
+                });
             }
             AppEvent::OpenFolder { path } => {
                 let dir = std::path::Path::new(&path);
@@ -388,31 +450,28 @@ impl DesktopApp {
                 }
             }
             AppEvent::ChooseBackupFile => {
-                let mut dialog =
-                    rfd::FileDialog::new().add_filter(BOOK_FILTER, &[brand::BOOK_EXTENSION]);
-                if let Some(d) = mk_commands::backups::default_folder().filter(|d| d.is_dir()) {
-                    dialog = dialog.set_directory(d);
+                let mut ask = Ask::file().filter(BOOK_FILTER, &[brand::BOOK_EXTENSION]);
+                if let Some(dir) = mk_commands::backups::default_folder().filter(|d| d.is_dir()) {
+                    ask = ask.directory(dir);
                 }
-                if let Some(p) = dialog
-                    .pick_file()
-                    .and_then(|p| p.to_str().map(str::to_owned))
-                {
-                    self.views.app_mut().restore_from_file(&p);
-                }
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().restore_from_file(&p);
+                    }
+                });
             }
             AppEvent::ChooseRestoreTarget { dir, file_name } => {
-                let mut dialog = rfd::FileDialog::new()
-                    .add_filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
-                    .set_file_name(&file_name);
-                if let Some(d) = dir.filter(|d| std::path::Path::new(d).is_dir()) {
-                    dialog = dialog.set_directory(d);
+                let mut ask = Ask::save()
+                    .filter(BOOK_FILTER, &[brand::BOOK_EXTENSION])
+                    .file_name(&file_name);
+                if let Some(dir) = dir.filter(|d| std::path::Path::new(d).is_dir()) {
+                    ask = ask.directory(dir);
                 }
-                if let Some(p) = dialog
-                    .save_file()
-                    .and_then(|p| p.to_str().map(str::to_owned))
-                {
-                    self.views.app_mut().restore_to(&p);
-                }
+                self.ask(ask, |d, picked| {
+                    if let Some(p) = dialogs::first_text(&picked) {
+                        d.views.app_mut().restore_to(&p);
+                    }
+                });
             }
             AppEvent::ShowInFolder { path } => {
                 if let Err(e) = show_in_folder(std::path::Path::new(&path)) {
@@ -429,18 +488,20 @@ impl DesktopApp {
                 }
             }
             AppEvent::SaveFile { file_name, content } => {
-                if let Some(p) = rfd::FileDialog::new().set_file_name(&file_name).save_file() {
-                    match std::fs::write(&p, content) {
-                        Ok(()) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Saved {}", p.display())),
-                        Err(e) => self
-                            .views
-                            .app_mut()
-                            .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
+                self.ask(Ask::save().file_name(&file_name), move |d, picked| {
+                    if let Some(p) = picked.first() {
+                        match std::fs::write(p, content) {
+                            Ok(()) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Saved {}", p.display())),
+                            Err(e) => d
+                                .views
+                                .app_mut()
+                                .watch_reported(&format!("Couldn't save {}: {e}", p.display())),
+                        }
                     }
-                }
+                });
             }
         }
     }
@@ -657,6 +718,7 @@ impl DesktopApp {
     /// After user input or time passing: watched-folder reports, the controller's
     /// requests, the window state, and text copied to the clipboard.
     fn after(&mut self) {
+        self.apply_answers();
         if let Some(rx) = &self.watch_rx {
             let msgs: Vec<String> = rx.try_iter().collect();
             if !msgs.is_empty() {

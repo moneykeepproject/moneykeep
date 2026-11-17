@@ -3874,16 +3874,11 @@ pub mod windows {
             .collect();
         let h = sha1::Sha1::digest(&wide);
         let parts: Vec<String> = h
-            .chunks_exact(4)
-            .map(|c| {
-                let b: [u8; 4] = [
-                    c.first().copied().unwrap_or(0),
-                    c.get(1).copied().unwrap_or(0),
-                    c.get(2).copied().unwrap_or(0),
-                    c.get(3).copied().unwrap_or(0),
-                ];
-                u32::from_le_bytes(b).to_string()
-            })
+            .as_slice()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|c| u32::from_le_bytes(*c).to_string())
             .collect();
         format!("S-1-5-80-{}", parts.join("-"))
     }

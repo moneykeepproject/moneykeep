@@ -1275,3 +1275,163 @@ fn sr_b3_a_401_is_a_rejected_key_only_when_refused_twice() {
     assert_eq!(e.code(), "credential_rejected", "{e}");
     assert_eq!(q.fake.requests().len(), 2);
 }
+
+// ----- app-desktop.md revision 43: the feed line counts investment rows -----------------
+
+#[test]
+fn app_desktop_rev43_test239_feed_line_counts_investment_rows() {
+    let mut p = snap_book();
+    p.fake.with(|s| {
+        s.activities.insert(
+            "acct-1".into(),
+            vec![
+                act("b1", "BUY", "2026-09-02", "10", "220.00", "-2200.00", "0"),
+                act("b2", "BUY", "2026-09-03", "5", "221.00", "-1105.00", "0"),
+            ],
+        );
+    });
+    snap_connect(&mut p);
+    let r = snap_sync(&mut p);
+    let batch = snap_batch(&mut p, &r);
+    assert_eq!(inv_rows(&batch).len(), 2, "{batch}");
+    assert_eq!(batch["rows"].as_array().map(Vec::len), Some(0), "{batch}");
+    let brokerage =
+        p.b.run("account.get", json!({"account": "Assets:Brokerage"}))["id"].clone();
+    let att = p.b.run("connect.attention", json!({"today": "2026-10-04"}));
+    let item = att
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["kind"] == "batch")
+        .unwrap()
+        .clone();
+    assert_eq!(item["batch"], r["batch"]);
+    assert_eq!(item["count"], 2, "{item}");
+    assert_eq!(
+        item["accounts"],
+        json!([{"account": brokerage, "count": 2}]),
+        "{item}"
+    );
+    assert_eq!(item["message"], "SnapTrade: 2 new transactions to review");
+}
+
+// ----- connectivity-brokerage.md revision 3: batches without rows do not pile up --------
+
+const VTI_POSITION: &str = r#"{"instrument": {"kind": "etf", "symbol": "VTI", "raw_symbol": "VTI", "description": "Vanguard Total Stock Market ETF", "currency": "USD", "figi_instrument": {"figi_code": "BBG000HXBZB2"}}, "units": UNITS, "price": 231.17, "cost_basis": 210.0, "currency": "USD", "cash_equivalent": false}"#;
+
+/// A book holding 10 VTI from a committed sync; the provider then reports `units` VTI
+/// and no activities.
+fn snap_holding(units: &str) -> Snap {
+    let mut p = snap_with_trade();
+    p.fake.with(|s| {
+        s.balances.insert("acct-1".into(), Vec::new());
+    });
+    snap_connect(&mut p);
+    let r = snap_sync(&mut p);
+    let batch = snap_batch(&mut p, &r);
+    p.b.commit(&batch);
+    p.fake.with(|s| {
+        s.activities.insert("acct-1".into(), Vec::new());
+        s.positions.insert(
+            "acct-1".into(),
+            vec![serde_json::from_str(&VTI_POSITION.replace("UNITS", units)).unwrap()],
+        );
+    });
+    set_now(&mut p.b, NOW + 86_400);
+    p
+}
+
+/// The connection's staged batches, as `import.list` gives them.
+fn staged(p: &mut Snap) -> Vec<Value> {
+    p.b.run("import.list", json!({"status": "staged"}))
+        .as_array()
+        .unwrap()
+        .clone()
+}
+
+#[test]
+fn rev3_test23_agreeing_sync_without_activities_leaves_no_batch() {
+    let mut p = snap_holding("10");
+    let r = snap_sync(&mut p);
+    assert!(r["batch"].is_null(), "{r}");
+    assert_eq!(r["holdings"][0]["agree"], true, "{r}");
+    assert!(r["partial"].is_null(), "{r}");
+    assert!(r.get("pages").is_some(), "{r}");
+    assert!(staged(&mut p).is_empty());
+    let check = p.b.run(
+        "connect.holdings_check",
+        json!({"account": "Assets:Brokerage"}),
+    );
+    assert_eq!(check["agree"], true, "{check}");
+    assert_eq!(check["positions"][0]["security"], "VTI", "{check}");
+    assert!(
+        !p.b.run(
+            "dashboard.block_data",
+            json!({"dashboard": "home", "block": "attention", "today": "2026-10-05"}),
+        )
+        .to_string()
+        .contains("Import waiting for review")
+    );
+}
+
+#[test]
+fn rev3_test24_differing_syncs_keep_only_the_newest_empty_batch() {
+    let mut p = snap_holding("12.5");
+    let first = snap_sync(&mut p);
+    assert!(first["batch"].is_string(), "{first}");
+    assert_eq!(first["holdings"][0]["agree"], false, "{first}");
+    let s = staged(&mut p);
+    assert_eq!(s.len(), 1, "{s:?}");
+    assert_eq!(s[0]["id"], first["batch"]);
+    assert_eq!(s[0]["rows"], 0);
+    assert_eq!(s[0]["inv_rows"], 0);
+    // app-desktop.md revision 43: listed for its holdings difference.
+    let att = p.b.run(
+        "dashboard.block_data",
+        json!({"dashboard": "home", "block": "attention", "today": "2026-10-05"}),
+    );
+    assert!(
+        att.to_string()
+            .contains("Import waiting for review: SnapTrade — Brokerages (holdings differ)"),
+        "{att}"
+    );
+    set_now(&mut p.b, NOW + 2 * 86_400);
+    let second = snap_sync(&mut p);
+    assert!(second["batch"].is_string(), "{second}");
+    assert_ne!(second["batch"], first["batch"]);
+    let s = staged(&mut p);
+    assert_eq!(s.len(), 1, "{s:?}");
+    assert_eq!(s[0]["id"], second["batch"]);
+    assert_eq!(s[0]["rows"], 0);
+    assert_eq!(s[0]["inv_rows"], 0);
+    assert_eq!(
+        p.b.run("import.get", json!({"batch": first["batch"]}))["status"],
+        "discarded"
+    );
+}
+
+#[test]
+fn rev3_test25_batches_with_rows_survive_a_later_sync() {
+    let mut p = snap_with_trade();
+    p.fake.with(|s| {
+        s.balances.insert("acct-1".into(), Vec::new());
+    });
+    snap_connect(&mut p);
+    let first = snap_sync(&mut p);
+    assert_eq!(inv_rows(&snap_batch(&mut p, &first)).len(), 1);
+    // The later sync brings no activity: only a cash balance that agrees with the book.
+    p.fake.with(|s| {
+        s.activities.insert("acct-1".into(), Vec::new());
+        s.balances.insert(
+            "acct-1".into(),
+            vec![serde_json::from_str(r#"{"currency": {"code": "USD"}, "cash": 0}"#).unwrap()],
+        );
+    });
+    set_now(&mut p.b, NOW + 86_400);
+    let second = snap_sync(&mut p);
+    assert!(second["batch"].is_null(), "{second}");
+    let s = staged(&mut p);
+    assert_eq!(s.len(), 1, "{s:?}");
+    assert_eq!(s[0]["id"], first["batch"]);
+    assert_eq!(s[0]["inv_rows"], 1);
+}

@@ -154,11 +154,30 @@ pub(crate) fn view(app: &mut App, ui: &mut Ui, batch: &str) {
                     String::new()
                 }
             ));
-            for s in b.list("sections").to_vec() {
-                if !s.at("statement").is_null()
-                    && let Some(acc) = s.at("account").as_str()
-                    && ui.button("Reconcile now").clicked()
-                {
+            // app-desktop.md revision 43: each reconciliation offered is its own
+            // line naming the account and the statement balance.
+            for (i, s) in b.list("sections").to_vec().into_iter().enumerate() {
+                if s.at("statement").is_null() {
+                    continue;
+                }
+                let Some(acc) = s.at("account").as_str() else {
+                    continue;
+                };
+                let name = s.str("account_name_resolved");
+                let c = s.at("closing");
+                let pressed = ui.scope(format!("reconcile-offer-{i}"), |ui| {
+                    ui.row(|ui| {
+                        ui.label(format!(
+                            "{name} — statement balance {} on {}",
+                            fmt::group(c.str("amount")),
+                            fmt::date(c.str("date"))
+                        ));
+                        ui.spacer();
+                        ui.named(format!("Reconcile {name} now"));
+                        ui.button("Reconcile now").clicked()
+                    })
+                });
+                if pressed {
                     app.reconcile_start_statement(acc, s.str("statement"));
                 }
             }

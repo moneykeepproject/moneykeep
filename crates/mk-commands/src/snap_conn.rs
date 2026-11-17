@@ -986,8 +986,13 @@ pub(crate) fn apply(
         .unwrap_or_default()
         .to_owned();
     let holdings = crate::inv_import::feed_holdings(ctx, conn, &batch, "SnapTrade")?;
+    // connectivity-brokerage.md revision 3: batches without rows do not pile up.
+    let gone = crate::connect::discard_rowless(ctx, conn)?;
     let mut out = staged;
     if let Some(o) = out.as_object_mut() {
+        if gone.contains(&batch) {
+            o.insert("batch".into(), Value::Null);
+        }
         o.insert("holdings".into(), holdings);
         o.insert("pages".into(), json!(pages));
         o.insert("partial".into(), json!(conn.partial));

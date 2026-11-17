@@ -1158,3 +1158,42 @@ fn connectivity_rev5_dismiss_an_account_notice() {
     let att = f.b.run("connect.attention", json!({}));
     assert!(!att.to_string().contains("Sign in again"), "{att}");
 }
+
+// ----- app-desktop.md revision 43: a feed batch is listed once ----------------------------
+
+#[test]
+fn app_desktop_rev43_test238_feed_batch_appears_once_in_attention() {
+    let (mut f, id) = connected(V2);
+    link_all(&mut f, &id);
+    let out = sync(&mut f, true);
+    let batch = out["connections"][0]["batch"].clone();
+    let att = f.b.run(
+        "dashboard.block_data",
+        json!({"dashboard": "home", "block": "attention", "today": "2026-10-01"}),
+    );
+    let items = att["items"].as_array().unwrap();
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert_eq!(
+        labels
+            .iter()
+            .filter(|l| **l == "SimpleFIN: 3 new transactions to review")
+            .count(),
+        1,
+        "{labels:?}"
+    );
+    assert!(
+        !labels
+            .iter()
+            .any(|l| l.starts_with("Import waiting for review")),
+        "{labels:?}"
+    );
+    assert_eq!(
+        items
+            .iter()
+            .filter(|i| i["target"]["batch"] == batch
+                && !i["label"].as_str().unwrap().contains("need review"))
+            .count(),
+        1,
+        "{att}"
+    );
+}

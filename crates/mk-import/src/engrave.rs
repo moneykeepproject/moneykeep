@@ -275,10 +275,8 @@ pub fn crop_square(img: &Rgb, x: u32, y: u32, size: u32, out: u32) -> ImportResu
 /// Luminance 0–255 of each pixel (Rec. 601 weights in 1/256).
 fn luminance(img: &Rgb, side: usize) -> Plane {
     let mut p = Plane::new(side, 0);
-    for (v, c) in p.v.iter_mut().zip(img.data.chunks_exact(3)) {
-        if let [r, g, b] = c {
-            *v = (77 * i32::from(*r) + 150 * i32::from(*g) + 29 * i32::from(*b)) >> 8;
-        }
+    for (v, [r, g, b]) in p.v.iter_mut().zip(img.data.as_chunks::<3>().0) {
+        *v = (77 * i32::from(*r) + 150 * i32::from(*g) + 29 * i32::from(*b)) >> 8;
     }
     p
 }

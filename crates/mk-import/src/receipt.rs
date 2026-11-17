@@ -264,7 +264,7 @@ pub fn resize(img: &Rgb, w: u32, h: u32) -> ImportResult<Rgb> {
             for (a, (x0, x1)) in acc.iter_mut().zip(&xs) {
                 let from = usize::try_from(*x0).unwrap_or(0) * 3;
                 let to = usize::try_from(*x1).unwrap_or(0) * 3;
-                for px in line.get(from..to).unwrap_or(&[]).chunks_exact(3) {
+                for px in line.get(from..to).unwrap_or(&[]).as_chunks::<3>().0 {
                     for (s, v) in a.iter_mut().zip(px) {
                         *s += u64::from(*v);
                     }

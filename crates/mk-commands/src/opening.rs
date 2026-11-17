@@ -776,7 +776,7 @@ fn plan_json(ctx: &Ctx<'_>, p: &Plan) -> CommandResult<Value> {
     };
     let feed = match &p.feed {
         Some(f) => json!({
-            "balance": f.balance.map(&money), "date": f.date,
+            "balance": f.balance.map(money), "date": f.date,
             "include_pending": f.include_pending, "connection": f.connection, "link": f.link,
             "pending_text": if f.include_pending {
                 "Pending transactions are included, as set for this account."

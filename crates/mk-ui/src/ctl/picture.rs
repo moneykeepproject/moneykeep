@@ -376,18 +376,16 @@ fn shown(ed: &Editor) -> Option<Rc<Picture>> {
     if p.width as usize != MASK_SIDE || p.height as usize != MASK_SIDE {
         return Some(after);
     }
-    for (px, m) in p.rgba.chunks_exact_mut(4).zip(&mask) {
+    for ([r, g, b, a], m) in p.rgba.as_chunks_mut::<4>().0.iter_mut().zip(&mask) {
         let tint: [u16; 3] = match m {
             1 => [0x2E, 0xB8, 0x6A],
             2 => [0xE5, 0x48, 0x4D],
             _ => continue,
         };
-        if let [r, g, b, a] = px {
-            for (c, t) in [r, g, b].into_iter().zip(tint) {
-                *c = u8::try_from((u16::from(*c) * 3 + t * 2) / 5).unwrap_or(255);
-            }
-            *a = (*a).max(120);
+        for (c, t) in [r, g, b].into_iter().zip(tint) {
+            *c = u8::try_from((u16::from(*c) * 3 + t * 2) / 5).unwrap_or(255);
         }
+        *a = (*a).max(120);
     }
     Some(Rc::new(p))
 }

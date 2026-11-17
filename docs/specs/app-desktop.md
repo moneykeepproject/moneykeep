@@ -2545,3 +2545,52 @@ Tests:
   window height.
 - 236. Screenshots light and dark: `message-info`, `message-error-details`,
   `message-undo` (a register with the pop-up over its bottom-right corner).
+
+## Revision 43 — Attention lists only imports with something to do; named Reconcile now offers (2026-11-16, owner report)
+
+Owner report: Home → Attention showed "Import waiting for review: SnapTrade — Schwab
+(0 rows)" three times — batches with nothing in them. And after **Add to books**, Import
+review showed six identical **Reconcile now** buttons with nothing saying which account
+each one was for.
+
+Terms: a batch's *rows* are its bank rows and its investment rows together. A row is
+*to review* when it is marked needs review, or when it is neither already imported
+(class `duplicate`) nor skipped.
+
+- **Attention, staged batches.** A staged batch has at most one "Import waiting for
+  review" line, and only while it holds something for the user:
+  - one or more rows to review: "Import waiting for review: <source> (1 row to review)"
+    / "(N rows to review)";
+  - rows, none of them to review: "Import waiting for review: <source> (nothing new to
+    add)";
+  - no rows: listed only when the batch is the one behind an account's latest holdings
+    check (connectivity-brokerage.md C) and that check does not agree: "Import waiting
+    for review: <source> (holdings differ)". Any other batch without rows is not
+    listed.
+  - A feed batch that the feed's own line already lists ("<provider>: N new
+    transactions to review", connectivity.md) is not listed a second time.
+  The separate "N imported row(s) need review" line is unchanged.
+- **Feed line counts investment rows.** `connect.attention`'s batch items count new,
+  not skipped investment rows as well as bank rows, in the total and in the
+  per-account counts, so a brokerage feed's activity gets its line, its **Review**
+  button under Settings → Connections and its band in the register.
+- **`import.list`** gives, besides `rows` (bank rows, unchanged), `inv_rows` (investment
+  rows) and `to_review` (rows to review, both kinds).
+- **Import review after Add to books.** Each reconciliation offered (a section with a
+  captured statement balance) is its own line: "<account full name> — statement
+  balance <amount> on <date>" (amount grouped, date in the book's date format), then
+  the **Reconcile now** button, whose accessible name is "Reconcile <account full
+  name> now". Nothing else about the offer changes.
+
+Tests:
+- 237. A staged batch with no rows and no holdings difference adds no Attention item;
+  one with 3 rows of which 2 are already imported shows "(1 row to review)"; one whose
+  rows are all already imported shows "(nothing new to add)".
+- 238. A staged feed batch with new rows appears once in Attention (the feed's line),
+  not also as "Import waiting for review".
+- 239. A staged brokerage feed batch with 2 new investment rows and no bank rows gives
+  a `connect.attention` batch item with `count` 2 and that account's count 2.
+- 240. After committing a file with two sections that captured statement balances, the
+  page shows two lines naming the two accounts with their balances, and two buttons
+  named "Reconcile <account> now"; pressing the second starts that account's
+  reconciliation.

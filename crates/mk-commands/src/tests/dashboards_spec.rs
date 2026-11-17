@@ -661,3 +661,61 @@ fn dashboards_rev3_button_sizes_and_icons() {
     let g = b.run("dashboard.get", json!({"dashboard": dash}));
     assert_eq!(g["icon"], "calculator");
 }
+
+// ----- app-desktop.md revision 43: Attention lists only imports with something to do ---
+
+fn import_lines(b: &mut Book) -> Vec<String> {
+    data(b, "home", "attention")["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|i| i["label"].as_str())
+        .filter(|l| l.starts_with("Import waiting for review"))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn app_desktop_rev43_test237_attention_lists_only_batches_with_something_to_do() {
+    let mut b = book();
+    let two = "!Type:Bank\nD10/1/2026\nT-10.00\nPBakery\n^\nD10/2/2026\nT-20.00\nPGrocer\n^\n";
+    let first = b.stage_qif(two, "Assets:Checking");
+    b.commit(&first);
+    assert!(import_lines(&mut b).is_empty());
+    // No rows and no holdings difference: not listed.
+    let empty = b.run(
+        "import.stage",
+        json!({"format": "qif", "content": "!Type:Bank\n", "account": "Assets:Checking"}),
+    );
+    assert_eq!(empty["rows"].as_array().map(Vec::len), Some(0), "{empty}");
+    assert!(import_lines(&mut b).is_empty());
+    // Three rows, two already imported.
+    let three = format!("{two}D10/3/2026\nT-30.00\nPCafe\n^\n");
+    let partly = b.stage_qif(&three, "Assets:Checking");
+    assert_eq!(
+        import_lines(&mut b),
+        ["Import waiting for review: file (1 row to review)"]
+    );
+    let listed = b.run("import.list", json!({"status": "staged"}));
+    let of = |id: &Value| {
+        listed
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["id"] == *id)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(of(&partly["id"])["rows"], 3);
+    assert_eq!(of(&partly["id"])["inv_rows"], 0);
+    assert_eq!(of(&partly["id"])["to_review"], 1);
+    assert_eq!(of(&empty["id"])["rows"], 0);
+    assert_eq!(of(&empty["id"])["to_review"], 0);
+    b.run("import.discard", json!({"batch": partly["id"]}));
+    // Every row already imported.
+    b.stage_qif(two, "Assets:Checking");
+    assert_eq!(
+        import_lines(&mut b),
+        ["Import waiting for review: file (nothing new to add)"]
+    );
+}

@@ -373,3 +373,36 @@ activities already read (and the balances) were thrown away too.
     wording; no red line.
 21. Every call answering 410: the red line with "SnapTrade no longer offers this request".
 22. A 429 with `Retry-After: 2` waits at least 2 seconds (fake clock) before retrying.
+
+## Revision 3 (2026-11-16) — SnapTrade batches without rows do not pile up (owner report)
+
+Owner report: Home → Attention listed three "SnapTrade — Schwab (0 rows)" imports.
+
+Cause: a SnapTrade sync that finds positions or a cash balance but no new activity still
+stages a batch (the holdings check, C, is worked out against it). Such a batch has no
+rows, nothing in it can be added to the books, and every later sync added another one.
+
+- A batch without rows (no bank rows and no investment rows) matters only while it is
+  the batch behind an account's latest holdings check **and** that check does not agree
+  (a holding or the cash differs): its review is where the user adds a row for the
+  difference.
+- After a SnapTrade sync has staged its batch and stored the holdings check, every
+  staged batch of that connection without rows is discarded, except one that matters
+  as above. This includes batches left by earlier syncs and, when it has no rows and
+  its holdings agree, the batch just staged.
+- When the batch just staged is discarded, the sync result's `batch` is null; its
+  `holdings`, `pages` and `partial` are unchanged. The stored holdings check keeps
+  naming the batch it was worked out against.
+- Batches with rows are never discarded by a sync, whatever their rows' classes.
+- Home's Attention follows app-desktop.md revision 43.
+
+### Tests (fake SnapTrade server)
+
+23. A sync with positions that agree with the book and no activities returns `batch`
+    null and leaves no staged batch for the connection; `connect.holdings_check`
+    returns the agreeing comparison.
+24. A sync with no activities whose positions differ from the book keeps its batch
+    staged (revision 1 test 15 unchanged). A following sync, still differing, leaves
+    exactly one staged batch without rows for the connection: the newest.
+25. A staged batch with rows from an earlier sync is still staged after a later sync
+    that brings nothing.

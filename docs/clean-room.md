@@ -143,6 +143,7 @@ only to `docs/specs/`.
 | Slint UI revision 2: real `.slint` screens (`ui-slint` rev 2) | Claude session 2026-11-02 (spec-writer; sources: Slint documentation; owner decision; no target product observed) | Claude implementer subagent session (inputs: docs/specs + Slint documentation) |
 | Desktop rev 32: one click and minimal password prompt (`app-desktop` rev 32) | Claude session 2026-11-04 (spec-writer; sources: owner report; no target product observed) | Claude implementer subagent session (inputs: docs/specs + Slint documentation) |
 | EZ Chart of Accounts (`chart-presets`, `ledger-accounts` rev 2, `reports` rev 4, `app-desktop` rev 34) | Claude session 2026-11-04 (spec-writer; sources: owner-authored chart seed and validation rules, OpenStax, IRS tax year 2025 forms and instructions; no target product observed) | Claude implementer subagent session (inputs: docs/specs incl. the owner seed + IRS forms) |
+| Attention list and Reconcile now offers; row-less SnapTrade batches (`app-desktop` rev 43, `connectivity-brokerage` rev 3) | Claude session 2026-11-16 (spec-writer; sources: owner report with two screenshots of MoneyKeep itself, MoneyKeep's own code and specs; no target product observed) | Claude implementer subagent session (inputs: docs/specs only) |
 
 Record of the Phase 0 implementer session: it read only prior-art licence files and
 the structural template project's repository layouts and READMEs (not a target

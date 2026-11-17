@@ -1786,13 +1786,42 @@ fn list(ctx: &Ctx<'_>, a: ListArgs) -> CommandResult<Value> {
         if a.status.as_ref().is_some_and(|s| *s != b.status) {
             continue;
         }
-        let rows = ctx.tx.docs(DocTable::ImportRow, Some(&b.id))?.len();
+        // app-desktop.md revision 43: investment rows and the rows to review.
+        let n = row_counts(ctx, &b.id)?;
         out.push(json!({
             "id": b.id, "format": b.format, "status": b.status, "created_at": b.created_at,
-            "source": b.source, "sections": b.sections.len(), "rows": rows,
+            "source": b.source, "sections": b.sections.len(), "rows": n.rows,
+            "inv_rows": n.inv_rows, "to_review": n.to_review,
         }));
     }
     Ok(Value::Array(out))
+}
+
+/// A batch's bank rows, investment rows and rows to review (app-desktop.md revision
+/// 43): a row is to review when it is marked needs review, or when it is neither
+/// already imported (class `duplicate`) nor skipped.
+pub(crate) struct RowCounts {
+    pub rows: usize,
+    pub inv_rows: usize,
+    pub to_review: usize,
+}
+
+pub(crate) fn row_counts(ctx: &Ctx<'_>, batch: &str) -> CommandResult<RowCounts> {
+    let rows = load_rows(ctx, batch)?;
+    let inv = crate::inv_import::load_rows(ctx, batch)?;
+    let to_review = rows
+        .iter()
+        .filter(|r| r.needs_review || (r.class != Class::Duplicate && r.action != RowAction::Skip))
+        .count()
+        + inv
+            .iter()
+            .filter(|r| r.needs_review || (r.class != "duplicate" && r.action != "skip"))
+            .count();
+    Ok(RowCounts {
+        rows: rows.len(),
+        inv_rows: inv.len(),
+        to_review,
+    })
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

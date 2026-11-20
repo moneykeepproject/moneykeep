@@ -95,8 +95,65 @@ const RULES: &[(&str, &[&str])] = &[
         "moneykeep-capture",
         &["mk-capture-api", "mk-ui", "mk-views"],
     ),
+    // Phone capture end-to-end tests (crates-for-other-apps.md): moved out of
+    // mk-connect; everything they use is a development dependency.
+    ("mk-capture-tests", &[]),
     ("xtask", &[]),
 ];
+
+/// The crates other Keep apps copy (crates-for-other-apps.md, "The set"). Their
+/// dependencies of every kind (normal, build and development) inside this workspace,
+/// and their path dependencies, are crates of this list: never an app, never another
+/// crate. A new dependency needs the crate added here and in that spec first.
+pub const COPY_SET: &[&str] = &[
+    "mk-core",
+    "mk-ledger",
+    "mk-store",
+    "mk-import",
+    "mk-capture-api",
+    "mk-commands",
+    "mk-connect",
+];
+
+/// crates-for-other-apps.md, "The check" 4: every dependency of a crate in the copy
+/// set on a workspace package (an app or a crate) or a path crate outside the set,
+/// whatever its kind, named with both crates. `packages` is `cargo metadata`'s
+/// package list; `workspace` the workspace's package names.
+pub fn copy_set_errors(packages: &[Value], workspace: &[&str]) -> Vec<String> {
+    let mut errors = Vec::new();
+    for pkg in packages {
+        let name = field(pkg, "name").as_str().unwrap_or("?");
+        if !COPY_SET.contains(&name) {
+            continue;
+        }
+        for dep in field(pkg, "dependencies")
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+        {
+            let dep_name = field(dep, "name").as_str().unwrap_or("?");
+            let local = workspace.contains(&dep_name) || !field(dep, "path").is_null();
+            if !local || COPY_SET.contains(&dep_name) {
+                continue;
+            }
+            let kind = match field(dep, "kind").as_str() {
+                Some("dev") => "a development dependency",
+                Some("build") => "a build dependency",
+                _ => "a dependency",
+            };
+            let what = if dep_name.starts_with("moneykeep-") || dep_name == "keep-mcp" {
+                "an app"
+            } else {
+                "a crate outside the copy set"
+            };
+            errors.push(format!(
+                "{name} must not depend on {dep_name} ({kind}): {name} is in the copy set other \
+                 Keep apps copy and {dep_name} is {what} (crates-for-other-apps.md)"
+            ));
+        }
+    }
+    errors
+}
 
 /// Crates whose normal dependencies are limited to this list (pure crates that must
 /// build for wasm32 and do no IO).
@@ -456,6 +513,8 @@ pub fn check() -> Result<(), String> {
         }
     }
 
+    errors.extend(copy_set_errors(packages, &workspace));
+
     let root_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap_or(std::path::Path::new("."));
@@ -580,6 +639,156 @@ mod tests {
             include_str!("../../apps/moneykeep-cli/Cargo.toml"),
         ] {
             assert!(!manifest.contains("mk-mcp"), "{manifest}");
+        }
+    }
+
+    /// `cargo metadata --no-deps` of this workspace.
+    fn workspace_metadata() -> Value {
+        let out = Command::new(env!("CARGO"))
+            .args(["metadata", "--format-version", "1", "--no-deps"])
+            .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/.."))
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice(&out.stdout).unwrap()
+    }
+
+    fn names(meta: &Value) -> Vec<String> {
+        field(meta, "packages")
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| field(p, "name").as_str().map(str::to_owned))
+            .collect()
+    }
+
+    /// crates-for-other-apps.md: the set is the seven crates, every one a workspace
+    /// package; their layering rules allow only crates of the set.
+    #[test]
+    fn copy_set_rules() {
+        assert_eq!(
+            COPY_SET,
+            &[
+                "mk-core",
+                "mk-ledger",
+                "mk-store",
+                "mk-import",
+                "mk-capture-api",
+                "mk-commands",
+                "mk-connect"
+            ]
+        );
+        let meta = workspace_metadata();
+        let names = names(&meta);
+        for c in COPY_SET {
+            assert!(names.iter().any(|n| n == c), "{c} is a workspace package");
+            let allowed = RULES.iter().find(|(n, _)| n == c).map(|(_, a)| *a).unwrap();
+            for a in allowed {
+                assert!(
+                    COPY_SET.contains(a),
+                    "{c}'s rule allows {a}, outside the set"
+                );
+            }
+        }
+        assert!(!COPY_SET.contains(&"mk-capture-tests"));
+    }
+
+    /// crates-for-other-apps.md acceptance test 2 (and "The check" 4): the real
+    /// workspace passes; with a test-only dependency on moneykeep-server put back in
+    /// mk-connect, the check fails and names both.
+    #[test]
+    fn at2_copy_set_dependency_on_an_app_fails() {
+        let meta = workspace_metadata();
+        let names = names(&meta);
+        let workspace: Vec<&str> = names.iter().map(String::as_str).collect();
+        let packages = field(&meta, "packages").as_array().unwrap().clone();
+        assert_eq!(copy_set_errors(&packages, &workspace), Vec::<String>::new());
+
+        let put_back = |dep: Value| -> Vec<String> {
+            let mut packages = packages.clone();
+            let connect = packages
+                .iter_mut()
+                .find(|p| field(p, "name") == "mk-connect")
+                .unwrap();
+            connect["dependencies"].as_array_mut().unwrap().push(dep);
+            copy_set_errors(&packages, &workspace)
+        };
+        let errs = put_back(serde_json::json!({
+            "name": "moneykeep-server", "kind": "dev", "path": "/w/apps/moneykeep-server"
+        }));
+        assert_eq!(errs.len(), 1, "{errs:?}");
+        assert!(
+            errs[0].starts_with(
+                "mk-connect must not depend on moneykeep-server (a development dependency)"
+            ),
+            "{errs:?}"
+        );
+        assert!(errs[0].contains("is an app"), "{errs:?}");
+        // A normal or build dependency on a crate outside the set fails the same way.
+        let errs =
+            put_back(serde_json::json!({"name": "mk-ui", "kind": null, "path": "/w/crates/mk-ui"}));
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("mk-connect must not depend on mk-ui")),
+            "{errs:?}"
+        );
+        let errs = put_back(
+            serde_json::json!({"name": "mk-watch", "kind": "build", "path": "/w/crates/mk-watch"}),
+        );
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("mk-watch (a build dependency)")),
+            "{errs:?}"
+        );
+        // Edge case: a new path crate that is not in the set (nor yet in the workspace).
+        let errs = put_back(
+            serde_json::json!({"name": "mk-new", "kind": null, "path": "/w/crates/mk-new"}),
+        );
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("mk-connect must not depend on mk-new")
+                    && e.contains("outside the copy set")),
+            "{errs:?}"
+        );
+        // Registry crates and crates of the set are fine.
+        assert!(put_back(serde_json::json!({"name": "serde", "kind": null})).is_empty());
+        assert!(
+            put_back(
+                serde_json::json!({"name": "mk-store", "kind": "dev", "path": "/w/crates/mk-store"})
+            )
+            .is_empty()
+        );
+    }
+
+    /// AT2 on the manifests themselves: no crate of the set names an app or the
+    /// capture tests crate in its Cargo.toml.
+    #[test]
+    fn copy_set_manifests_name_no_app() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        for c in COPY_SET {
+            let text =
+                std::fs::read_to_string(root.join("crates").join(c).join("Cargo.toml")).unwrap();
+            // Comments may explain where things went; the entries may not name them.
+            let text: String = text
+                .lines()
+                .filter(|l| !l.trim_start().starts_with('#'))
+                .collect::<Vec<_>>()
+                .join("\n");
+            for app in [
+                "moneykeep-server",
+                "moneykeep-app",
+                "moneykeep-cli",
+                "moneykeep-capture",
+                "keep-mcp",
+                "apps/",
+                "mk-capture-tests",
+            ] {
+                assert!(!text.contains(app), "{c}'s Cargo.toml names {app}");
+            }
         }
     }
 

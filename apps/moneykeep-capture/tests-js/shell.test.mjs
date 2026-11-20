@@ -477,3 +477,27 @@ test("UR-7 (L9): startApp downloads the program once, with the page's build, and
   assert.equal(posted.length, 1);
   assert.deepEqual([...posted[0].bytes], [1, 2, 3]);
 });
+
+// Capture 0.1.3 (2026-11-19): a start failure is written to the console with its
+// cause (it was only visible in the debugger), and the page still shows its message.
+test("a failing start logs its cause to the console", async () => {
+  const cause = new RangeError("WebAssembly.Table.grow(): failed to grow table by 4");
+  const { win, doc } = fakeWindow({ dark: false });
+  const logged = [];
+  win.console = { error: (...args) => logged.push(args) };
+  const started = await startApp(win, () => Promise.reject(cause));
+  assert.equal(started, false);
+  assert.deepEqual(logged, [["MoneyKeep couldn't start:", cause]]);
+  assert.ok(doc.getElementById("mk-start-failed"));
+  // A window without a console still shows the message.
+  const bare = fakeWindow({ dark: false });
+  delete bare.win.console;
+  assert.equal(await startApp(bare.win, () => Promise.reject(cause)), false);
+  assert.ok(bare.doc.getElementById("mk-start-failed"));
+});
+
+// The manifest is fetched with the Cloudflare Access cookie (otherwise Access answers
+// it with its sign-in page).
+test("the manifest link sends credentials", () => {
+  assert.match(html, /<link rel="manifest" href="manifest\.webmanifest" crossorigin="use-credentials">/);
+});

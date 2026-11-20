@@ -2,6 +2,10 @@
 //! leave it alone; server, phone app and `Cargo.lock` changes change it) and the
 //! check that the paths it covers are exactly the workspace crates the capture
 //! server and the phone app are built from.
+//!
+//! crates-for-other-apps.md: copied into another Keep app's workspace (without the
+//! capture server and the phone app), the checks of MoneyKeep's paths pass without
+//! running and say so; the build script's value there is checked instead.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -13,10 +17,11 @@
 mod capture_version;
 
 use std::collections::BTreeSet;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use capture_version::{Mode, capture_hash, capture_paths};
+use capture_version::{CaptureApps, Mode, capture_hash, capture_paths};
 use serde_json::{Value, json};
 
 fn write(root: &Path, rel: &str, text: &str) {
@@ -235,11 +240,100 @@ fn plain(path: &Path) -> PathBuf {
     PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s))
 }
 
+/// Which of the capture server and the phone app the workspace this crate is built
+/// in has (`cargo metadata --no-deps`: no download needed).
+fn capture_apps_here() -> CaptureApps {
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let meta = capture_version::metadata(&cargo, &workspace_manifest()).unwrap();
+    capture_version::capture_apps(&meta)
+}
+
+/// This crate's own manifest: cargo finds its workspace from there, wherever the
+/// crate was copied to.
+fn workspace_manifest() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")
+}
+
+/// Says, in the test's output even when it passes (stderr itself, not the captured
+/// `eprintln!`), that MoneyKeep's paths were not checked.
+fn say_not_checked(test: &str) {
+    let _ = writeln!(
+        std::io::stderr().lock(),
+        "{test}: NOT CHECKED: the capture server and the phone app are not in this \
+         workspace (crates-for-other-apps.md), so MoneyKeep's capture paths were not checked"
+    );
+}
+
+/// crates-for-other-apps.md: which programs a workspace has, from its metadata.
+#[test]
+fn capture_apps_from_metadata() {
+    let pkg = |name: &str| json!({"name": name, "version": "1.0.0"});
+    let meta =
+        |names: &[&str]| json!({"packages": names.iter().map(|n| pkg(n)).collect::<Vec<_>>()});
+    assert_eq!(
+        capture_version::capture_apps(&meta(&["mk-core", "moneykeep-server", "moneykeep-capture"])),
+        CaptureApps::Both
+    );
+    assert_eq!(
+        capture_version::capture_apps(&meta(&["mk-core", "mk-capture-api", "mk-commands"])),
+        CaptureApps::Neither
+    );
+    assert_eq!(
+        capture_version::capture_apps(&meta(&["mk-capture-api", "moneykeep-server"])),
+        CaptureApps::One
+    );
+    assert_eq!(
+        capture_version::capture_apps(&json!({})),
+        CaptureApps::Neither
+    );
+    assert_eq!(
+        capture_version::unknown_capture_version("1.2.3"),
+        "1.2.3+unknown"
+    );
+}
+
+/// crates-for-other-apps.md acceptance test 3: without the capture server and the
+/// phone app, the build script gives the value it uses when the capture version
+/// cannot be worked out, and no paths; in MoneyKeep's own workspace it gives the
+/// capture version worked out as release-packaging.md says, the same value
+/// `compute` (unchanged by that spec) gives for the same sources now.
+#[test]
+fn build_script_capture_version_for_its_workspace() {
+    match capture_apps_here() {
+        CaptureApps::Neither => {
+            assert_eq!(
+                mk_capture_api::CAPTURE_VERSION,
+                capture_version::unknown_capture_version(env!("CARGO_PKG_VERSION"))
+            );
+            assert_eq!(mk_capture_api::CAPTURE_PATHS, "");
+        }
+        CaptureApps::Both => {
+            let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+            let now = capture_version::compute(
+                &cargo,
+                &workspace_manifest(),
+                &workspace(),
+                env!("CARGO_PKG_VERSION"),
+            )
+            .unwrap();
+            assert!(now.note.is_none(), "{:?}", now.note);
+            assert_eq!(mk_capture_api::CAPTURE_VERSION, now.capture_version);
+            assert_eq!(mk_capture_api::CAPTURE_PATHS, now.paths.join(";"));
+        }
+        CaptureApps::One => panic!("only one of the capture programs is in the workspace"),
+    }
+}
+
 /// The baked-in path list covers every workspace crate the capture server and the
 /// phone app depend on (from the resolved graph, independently of the build
-/// script), and no desktop-only crate.
+/// script), and no desktop-only crate. Without those programs in the workspace
+/// (crates-for-other-apps.md) it passes without checking, and says so.
 #[test]
 fn capture_paths_cover_the_dependency_graph() {
+    if capture_apps_here() == CaptureApps::Neither {
+        say_not_checked("capture_paths_cover_the_dependency_graph");
+        return;
+    }
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let out = Command::new(cargo)
         .args(["metadata", "--format-version", "1", "--offline"])

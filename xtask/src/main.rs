@@ -1,10 +1,13 @@
 //! `cargo xtask <task>`
 //!
 //! - `ci`           names, fmt check, clippy (warnings denied), tests (mk-views' `ui`
-//!   test binary one module per process), layering, wasm build of the phone client,
-//!   the service worker's Node test, licence policy
+//!   test binary one module per process), layering, the copy set on its own
+//!   (`standalone`), wasm build of the phone client, the service worker's Node test,
+//!   licence policy
 //! - `layering`     layering check only
 //! - `names`        no removed names outside the allow-listed files (branding.md)
+//! - `standalone`   the crates other Keep apps copy build and pass their tests in a
+//!   workspace of their own (crates-for-other-apps.md); part of `ci`
 //! - `capture-icons` regenerate the phone app's icons from the calculator drawing
 //! - `dist-capture` build the phone app with Trunk (shrunk with `wasm-opt`;
 //!   `--no-wasm-opt` skips that) and the capture server with it embedded
@@ -26,7 +29,10 @@
 mod layering;
 mod licences;
 mod names;
+mod phone_page;
 mod release;
+mod standalone;
+mod wasm_check;
 mod wasm_opt;
 mod workflows;
 
@@ -39,6 +45,7 @@ fn main() -> ExitCode {
         "ci" => ci(),
         "layering" => step("layering", layering::check),
         "names" => step("names", names::check),
+        "standalone" => step("standalone", standalone::check),
         "dist-capture" => dist_capture(&rest),
         "capture-icons" => capture_icons(),
         "release" => release::release(&rest),
@@ -47,7 +54,7 @@ fn main() -> ExitCode {
         "workflows" => step("workflows", workflows::check),
         _ => {
             eprintln!(
-                "usage: cargo xtask <ci|layering|names|dist-capture [--no-wasm-opt]|capture-icons|release [--dry-run] [--out DIR] [--no-wasm-opt]|installer [--skip-release] [--no-wasm-opt] (macOS: packaging/macos/package.sh's options)|phone-app --out DIR [--no-wasm-opt]|workflows>"
+                "usage: cargo xtask <ci|layering|names|standalone|dist-capture [--no-wasm-opt]|capture-icons|release [--dry-run] [--out DIR] [--no-wasm-opt]|installer [--skip-release] [--no-wasm-opt] (macOS: packaging/macos/package.sh's options)|phone-app --out DIR [--no-wasm-opt]|workflows>"
             );
             return ExitCode::FAILURE;
         }
@@ -93,6 +100,8 @@ fn ci() -> Result<(), String> {
     cargo("build keep-mcp", &["build", "-p", "keep-mcp"])?;
     tests()?;
     step("layering", layering::check)?;
+    // crates-for-other-apps.md: the copy set on its own.
+    step("standalone", standalone::check)?;
     step("workflows", workflows::check)?;
     wasm_build()?;
     service_worker_test()?;
@@ -431,7 +440,9 @@ pub(crate) fn phone_app(
             app_dir.display()
         ));
     }
+    phone_page::strip_file(&dist)?;
     let sizes = wasm_opt::shrink(&dist, tool.as_deref(), skip_wasm_opt)?;
+    wasm_check::check(&dist)?;
     Ok((dist, sizes))
 }
 
@@ -522,6 +533,7 @@ fn prebuilt_phone_app(
         optimized: v.get("wasm_opt").and_then(serde_json::Value::as_bool) == Some(true),
     };
     println!("{}", sizes.line());
+    wasm_check::check(&app)?;
     Ok((app, sizes))
 }
 
@@ -752,7 +764,11 @@ mod tests {
         let dist = d.join("dist");
         std::fs::create_dir_all(dist.join("icons")).unwrap();
         std::fs::write(dist.join("index.html"), b"<html>").unwrap();
-        std::fs::write(dist.join(wasm_opt::PROGRAM), b"wasm").unwrap();
+        std::fs::write(
+            dist.join(wasm_opt::PROGRAM),
+            wasm_check::tests::sample(true),
+        )
+        .unwrap();
         std::fs::write(dist.join("icons").join("a.png"), b"png").unwrap();
         let sizes = wasm_opt::Sizes {
             before: 10,
@@ -774,6 +790,12 @@ mod tests {
         assert!(!app.join(PHONE_SIZES_FILE).exists());
         let e = prebuilt_phone_app(&d.join("missing")).unwrap_err();
         assert!(e.contains("cargo xtask phone-app --out"), "{e}");
+        // A prebuilt program with the 0.1.3 defect is refused (wasm_check).
+        let program = out.join(PHONE_APP_DIR).join(wasm_opt::PROGRAM);
+        std::fs::write(&program, wasm_check::tests::sample(false)).unwrap();
+        let e = prebuilt_phone_app(&out).unwrap_err();
+        assert!(e.contains("not an externref table"), "{e}");
+        std::fs::write(&program, wasm_check::tests::sample(true)).unwrap();
         std::fs::remove_file(out.join(PHONE_SIZES_FILE)).unwrap();
         assert!(prebuilt_phone_app(&out).is_err());
         let _ = std::fs::remove_dir_all(&d);

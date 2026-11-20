@@ -495,6 +495,14 @@ export function hideLoading(win) {
   return true;
 }
 
+/** Write why the app couldn't start to the browser console (capture 0.1.3: a
+ * WebAssembly.Table.grow failure was only visible in the debugger). The page itself
+ * keeps showing START_FAILED. */
+export function logStartFailure(win, err) {
+  const c = win && win.console;
+  if (c && typeof c.error === "function") c.error("MoneyKeep couldn't start:", err);
+}
+
 /** Show START_FAILED and a Reload button: inside the loading card when the page
  * has one (revision 18), else over the canvas. */
 export function showStartFailure(win) {
@@ -625,6 +633,7 @@ export function startApp(win, init) {
         showUnreachable(win, card);
         return false;
       }
+      logStartFailure(win, err);
       showStartFailure(win);
       return false;
     },

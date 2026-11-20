@@ -29,11 +29,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 # Credentials outside the book: Keychain, Credential Manager, Secret Service (pure-Rust D-Bus).
 keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 
+# The phone capture tests that run the real capture server live in
+# crates/mk-capture-tests (crates-for-other-apps.md): this crate depends on no app.
 [dev-dependencies]
-# Phone capture tests run the real capture server on 127.0.0.1.
-moneykeep-server = { path = "../../apps/moneykeep-server" }
-mk-capture-api.workspace = true
-mk-import.workspace = true
 tempfile.workspace = true
 
 [lints]

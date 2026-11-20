@@ -30,7 +30,8 @@ import(`./shell.js${q}`).then(
       ),
     );
   },
-  () => {
+  (err) => {
+    console.error("MoneyKeep couldn't start:", err);
     const status = document.getElementById("mk-status");
     if (status) {
       status.textContent =

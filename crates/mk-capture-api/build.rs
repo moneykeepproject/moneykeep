@@ -8,6 +8,11 @@
 //!   are built from (see `build/capture_version.rs`), so desktop-only changes do not
 //!   ask for a server update. `MK_CAPTURE_PATHS` lists those paths (`;`-separated)
 //!   for the test that checks they cover the dependency graph.
+//!
+//! In a workspace without the capture server and the phone app (the crate copied
+//! into another Keep app, crates-for-other-apps.md) there is no capture version:
+//! the script uses the value it uses when the version cannot be worked out, with
+//! no paths, and prints no warning.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -51,6 +56,25 @@ fn main() {
     // The capture version.
     let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap_or_default());
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    // Copied into another Keep app's workspace (crates-for-other-apps.md): neither
+    // program is there, so there is nothing to work out and nothing to warn about.
+    if let Ok(meta) = capture_version::metadata(&cargo, &manifest_dir.join("Cargo.toml"))
+        && capture_version::capture_apps(&meta) == capture_version::CaptureApps::Neither
+    {
+        // Adding the programs to that workspace changes its Cargo.toml.
+        if let Some(root) = capture_version::workspace_root(&meta) {
+            println!(
+                "cargo:rerun-if-changed={}",
+                root.join("Cargo.toml").display()
+            );
+        }
+        println!(
+            "cargo:rustc-env=MK_CAPTURE_VERSION={}",
+            capture_version::unknown_capture_version(&pkg)
+        );
+        println!("cargo:rustc-env=MK_CAPTURE_PATHS=");
+        return;
+    }
     let workspace = manifest_dir
         .parent()
         .and_then(Path::parent)
@@ -77,7 +101,10 @@ fn main() {
             // Never equal to a real capture version: the desktop then offers an
             // update rather than staying quiet.
             println!("cargo:warning=the capture version could not be computed: {e}");
-            println!("cargo:rustc-env=MK_CAPTURE_VERSION={pkg}+unknown");
+            println!(
+                "cargo:rustc-env=MK_CAPTURE_VERSION={}",
+                capture_version::unknown_capture_version(&pkg)
+            );
             println!("cargo:rustc-env=MK_CAPTURE_PATHS=");
         }
     }

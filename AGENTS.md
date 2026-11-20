@@ -35,6 +35,11 @@ version, which you must follow:
 - **Layering is enforced** by `cargo xtask layering` (see `xtask/src/layering.rs`):
   `mk-core` depends on no other workspace crate and does no IO; storage, commands and
   apps sit above it. Front ends never talk to SQLite directly.
+- **The copy set builds on its own.** `mk-core`, `mk-ledger`, `mk-store`, `mk-import`,
+  `mk-capture-api`, `mk-commands` and `mk-connect` are copied by other Keep apps
+  (`docs/specs/crates-for-other-apps.md`): none of them may depend, even for tests, on
+  an app or a crate outside that set. `cargo xtask standalone` builds and tests them
+  alone.
 - **Money is exact.** Use `mk_core::Money` (backed by `rust_decimal`). Floating-point
   arithmetic is denied by clippy (`float_arithmetic`).
 - **No panics in shipped code.** `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!`
@@ -51,7 +56,7 @@ version, which you must follow:
 ```sh
 cargo run -p moneykeep-cli -- --help   # the CLI
 cargo test --workspace                  # tests
-cargo xtask ci                          # names, fmt, clippy, tests, layering, licence policy
+cargo xtask ci                          # names, fmt, clippy, tests, layering, standalone, licence policy
 ```
 
 Run `cargo xtask ci` before every commit. It must pass.
@@ -73,6 +78,7 @@ Run `cargo xtask ci` before every commit. It must pass.
 | `crates/mk-store` | SQLite schema, migrations, audit log |
 | `crates/mk-dpapi` | The capture server's inbox key sealed with Windows DPAPI: the workspace's only `unsafe` code (two calls into `crypt32.dll`), lints `deny` instead of `forbid` for that one module |
 | `crates/mk-commands` | Command registry and built-in commands |
+| `crates/mk-capture-tests` | Phone capture end-to-end tests (desktop commands against the real capture server); tests only, outside the copy set |
 | `xtask` | CI tasks and the layering check; `cargo xtask workflows` also enforces the Mac runner rules (only `release.yml` and `mac-runner-check.yml` may use the self-hosted Mac) |
 | `packaging/macos` | The macOS app bundle and disk image (`package.sh`, run by `cargo xtask installer` on a Mac; `--dry-run` anywhere), `docs/specs/macos-release.md` |
 | `.github/workflows/release.yml` | Releases: a pushed `v<version>` tag or a hand run; the Mac job runs on the owner's Mac after approval (`docs/deploy/mac-runner.md`) |

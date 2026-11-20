@@ -1,7 +1,10 @@
 //! mileage.md M11 and M13 (desktop part), mobile-capture.md revision 11: trips sent
 //! from a phone to the real capture server on 127.0.0.1 are taken into the book by
-//! `capture.collect` through this crate's fetcher; the lists the desktop publishes
+//! `capture.collect` through mk-connect's fetcher; the lists the desktop publishes
 //! carry the active vehicles, the saved trips and the rates. No internet.
+//!
+//! Moved here from `mk-connect` (crates-for-other-apps.md): the copy set may not
+//! depend on the capture server, even for tests.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use std::sync::Arc;

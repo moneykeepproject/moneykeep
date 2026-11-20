@@ -1,6 +1,9 @@
 //! mobile-capture.md desktop acceptance tests 11–13: the `capture.*` commands talk
 //! to the real capture server running on 127.0.0.1 (Access checks off, allowed only
-//! on loopback) through this crate's fetcher. No internet.
+//! on loopback) through mk-connect's fetcher. No internet.
+//!
+//! Moved here from `mk-connect` (crates-for-other-apps.md): the copy set may not
+//! depend on the capture server, even for tests.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use std::sync::Arc;

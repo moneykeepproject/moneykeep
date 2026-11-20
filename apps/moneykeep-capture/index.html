@@ -13,7 +13,9 @@
   <link data-trunk rel="copy-file" href="web/manifest.webmanifest">
   <link data-trunk rel="copy-file" href="web/sw.js">
   <link data-trunk rel="copy-dir" href="web/icons">
-  <link rel="manifest" href="manifest.webmanifest">
+  <!-- Sent with the Cloudflare Access cookie: without it Access answers the manifest
+       with its sign-in page and the browser can't read it. -->
+  <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">

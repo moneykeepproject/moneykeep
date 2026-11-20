@@ -69,7 +69,9 @@ fn at31_manifest_and_page_links() {
     }
     let html = read("index.html");
     for needle in [
-        r#"<link rel="manifest" href="manifest.webmanifest">"#,
+        // Sent with the Cloudflare Access cookie (capture 0.1.3 investigation): without
+        // it Access answers the manifest with its sign-in page.
+        r#"<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">"#,
         r#"<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">"#,
         r#"<meta name="apple-mobile-web-app-capable" content="yes">"#,
         r#"<meta name="apple-mobile-web-app-title" content="Capture">"#,

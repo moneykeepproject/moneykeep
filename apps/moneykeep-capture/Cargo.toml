@@ -30,7 +30,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 js-sys = { version = "0.3", optional = true }
 web-sys = { version = "0.3", optional = true, features = [
-    "AbortController", "AbortSignal", "Blob", "BlobPropertyBag", "CanvasRenderingContext2d", "Crypto", "Document", "Element", "Event",
+    "AbortController", "AbortSignal", "Blob", "BlobPropertyBag", "CanvasRenderingContext2d", "console", "Crypto", "Document", "Element", "Event",
     "EventTarget", "File", "FileList", "Headers", "HtmlCanvasElement", "HtmlElement",
     "History", "HtmlImageElement", "HtmlInputElement", "IdbDatabase", "IdbFactory", "IdbObjectStore",
     "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode",
@@ -43,7 +43,7 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = [
-    "AbortController", "AbortSignal", "Blob", "BlobPropertyBag", "CanvasRenderingContext2d", "Crypto", "Document", "Element", "Event",
+    "AbortController", "AbortSignal", "Blob", "BlobPropertyBag", "CanvasRenderingContext2d", "console", "Crypto", "Document", "Element", "Event",
     "EventTarget", "File", "FileList", "Headers", "HtmlCanvasElement", "HtmlElement",
     "History", "HtmlImageElement", "HtmlInputElement", "IdbDatabase", "IdbFactory", "IdbObjectStore",
     "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode",

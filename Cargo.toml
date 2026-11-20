@@ -7,6 +7,7 @@ members = [
     "apps/moneykeep-cli",
     "apps/moneykeep-server",
     "crates/mk-capture-api",
+    "crates/mk-capture-tests",
     "crates/mk-core",
     "crates/mk-dpapi",
     "crates/mk-store",

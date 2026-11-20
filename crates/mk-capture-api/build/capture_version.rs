@@ -29,6 +29,47 @@ use sha2::{Digest, Sha256};
 /// The two programs whose sources make up the capture version.
 pub const ROOTS: [&str; 2] = ["moneykeep-server", "moneykeep-capture"];
 
+/// Which of the two programs ([`ROOTS`]) are packages of a workspace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureApps {
+    /// Both: MoneyKeep's own workspace.
+    Both,
+    /// Neither: the crates were copied into another Keep app's workspace
+    /// (crates-for-other-apps.md), where there is no capture version to work out.
+    Neither,
+    /// Only one of them (a broken MoneyKeep workspace).
+    One,
+}
+
+/// Which of the two programs are packages of the workspace `meta` describes
+/// (`cargo metadata`, with or without `--no-deps`).
+pub fn capture_apps(meta: &Value) -> CaptureApps {
+    let packages = meta
+        .get("packages")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let found = ROOTS
+        .iter()
+        .filter(|root| {
+            packages
+                .iter()
+                .any(|p| p.get("name").and_then(Value::as_str) == Some(**root))
+        })
+        .count();
+    match found {
+        0 => CaptureApps::Neither,
+        n if n == ROOTS.len() => CaptureApps::Both,
+        _ => CaptureApps::One,
+    }
+}
+
+/// The capture version used when it cannot be worked out: never equal to a real
+/// one (the desktop then offers an update rather than staying quiet).
+pub fn unknown_capture_version(package_version: &str) -> String {
+    format!("{package_version}+unknown")
+}
+
 /// `cargo metadata --no-deps` for the workspace of `manifest`.
 pub fn metadata(cargo: &std::ffi::OsStr, manifest: &Path) -> Result<Value, String> {
     let out = Command::new(cargo)

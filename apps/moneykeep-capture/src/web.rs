@@ -883,14 +883,40 @@ pub fn start() {
         return;
     }
     let _ = js_sys::Reflect::set(&window, &flag, &JsValue::TRUE);
+    log_panics();
     // Slint draws on the page's `<canvas id="canvas">`, as Slint's WebAssembly
     // documentation (docs.slint.dev) sets the winit backend up in a browser. The
     // window shows the pages the app builds; requests and timers advance on a
     // Slint timer.
     let app = crate::ui::CaptureApp::new(WebPlatform::new());
-    let Ok(view) = mk_views::phone::PhoneView::new(app) else {
-        return;
+    let view = match mk_views::phone::PhoneView::new(app) {
+        Ok(view) => view,
+        Err(e) => {
+            log_error(&format!(
+                "MoneyKeep capture: the window could not be made: {e}"
+            ));
+            return;
+        }
     };
     connect(&view);
-    let _ = view.run(100);
+    if let Err(e) = view.run(100) {
+        log_error(&format!("MoneyKeep capture: the app stopped: {e}"));
+    }
+}
+
+/// A line in the browser console (the page shows its own message to the user).
+// Type-checked natively with `web-check`, where `start` is not built.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn log_error(text: &str) {
+    web_sys::console::error_1(&JsValue::from_str(text));
+}
+
+/// Panics are written to the browser console with their message and place; without
+/// this hook a panic shows only as "RuntimeError: unreachable" (capture 0.1.3
+/// investigation, 2026-11-19).
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn log_panics() {
+    std::panic::set_hook(Box::new(|info| {
+        log_error(&format!("MoneyKeep capture panicked: {info}"));
+    }));
 }
